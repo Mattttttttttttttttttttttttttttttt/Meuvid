@@ -11,14 +11,6 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
-/** SHA-256 hash of a string, returned as a hex string. */
-async function hashStr(s) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-  return Array.from(new Uint8Array(buf))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
 /** Load a value from localStorage, falling back to defaultValue. */
 function load(key, defaultValue) {
   try {
@@ -45,7 +37,7 @@ function save(key, val) {
  */
 function filterEntries(data, query, hasPos) {
   if (!query.trim()) return data;
-  const q    = query.trim();
+  const q = query.trim();
   const posM = q.match(/^pos\((.+)\)$/i);
   const allM = q.match(/^all\((.+)\)$/i);
   const defM = q.match(/^def\((.+)\)$/i);
@@ -59,19 +51,101 @@ function filterEntries(data, query, hasPos) {
     return data.filter(e => e.some(f => f.toLowerCase().includes(t)));
   }
   if (defM) {
-    const t   = defM[1].toLowerCase();
+    const t = defM[1].toLowerCase();
     const idx = hasPos ? 2 : 1;
     return data.filter(e => e[idx].toLowerCase().includes(t));
   }
 
   // Default: match word string; starts-with has priority
-  const t      = q.toLowerCase();
-  const starts = data.filter(e =>  e[0].toLowerCase().startsWith(t));
-  const rest   = data.filter(e => !e[0].toLowerCase().startsWith(t) && e[0].toLowerCase().includes(t));
+  const t = q.toLowerCase();
+  const starts = data.filter(e => e[0].toLowerCase().startsWith(t));
+  const rest = data.filter(e => !e[0].toLowerCase().startsWith(t) && e[0].toLowerCase().includes(t));
   return [...starts, ...rest];
 }
 
 /* ── Inline SVG icons ── */
+
+/**
+ * Serialize a 2D array (e.g. dict, roots) into a JS array literal.
+ * Each sub-array becomes one indented line.
+ */
+function _ser2D(arr) {
+  const rows = arr.map(row =>
+    '  [' + row.map(s => JSON.stringify(s)).join(', ') + ']'
+  ).join(',\n');
+  return `[\n${rows},\n]`;
+}
+
+/**
+ * Serialize a flat string array (e.g. grammar paragraphs) into a JS array literal.
+ */
+function _ser1D(arr) {
+  const rows = arr.map(s => '  ' + JSON.stringify(s)).join(',\n');
+  return `[\n${rows},\n]`;
+}
+
+/**
+ * Build a fresh data.js from current localStorage state and trigger a download.
+ * Replace the data.js in your project folder with the downloaded file, then redeploy.
+ */
+function exportDataJS() {
+  const dict = load('mv_dict', DEFAULT_DICT);
+  const roots = load('mv_roots', DEFAULT_ROOTS);
+  const grammar = load('mv_grammar', DEFAULT_GRAMMAR);
+  const phonetics = load('mv_phonetics', DEFAULT_PHONETICS);
+  const philosophy = load('mv_philosophy', DEFAULT_PHILOSOPHY);
+
+  const ts = new Date().toISOString();
+
+  const content =
+    `/* ================================================================
+   data.js — all static data arrays and navigation config
+   Last edited: ${ts}
+   ================================================================ */
+
+// SHA-256 hash of the admin password.
+// Hardcode this value manually. All devices check against it directly.
+const AUTH_HASH = ${JSON.stringify(AUTH_HASH)};
+
+const DEFAULT_DICT = ${_ser2D(dict)};
+
+const DEFAULT_ROOTS = ${_ser2D(roots)};
+
+const DEFAULT_GRAMMAR = ${_ser1D(grammar)};
+
+const DEFAULT_PHONETICS = ${_ser1D(phonetics)};
+
+const DEFAULT_PHILOSOPHY = ${_ser1D(philosophy)};
+
+// [keyword, description] — shown in the ? modal
+const DICT_KEYWORDS = ${_ser2D(DICT_KEYWORDS)};
+
+const ROOTS_KEYWORDS = ${_ser2D(ROOTS_KEYWORDS)};
+
+// Navigation items — id must match the page's active id passed to initNav()
+const NAV_ITEMS = [
+  { id: 'dict',       label: 'dictionary',  href: 'dict.html'       },
+  { id: 'grammar',    label: 'grammar',     href: 'grammar.html'    },
+  { id: 'roots',      label: 'roots',       href: 'roots.html'      },
+  { id: 'phonetics',  label: 'phonetics',   href: 'phonetics.html'  },
+  { id: 'philosophy', label: 'philosophy\u2026', href: 'philosophy.html' },
+];
+
+const HOME_CARDS = [
+  { id: 'dict',       title: 'Dictionary',  href: 'dict.html',       desc: 'Browse and search Meuvid words, parts of speech, and definitions.' },
+  { id: 'grammar',    title: 'Grammar',     href: 'grammar.html',    desc: 'Learn the grammatical structure and rules governing Meuvid.' },
+  { id: 'roots',      title: 'Roots',       href: 'roots.html',      desc: 'Explore the morphological roots from which Meuvid words are built.' },
+  { id: 'phonetics',  title: 'Phonetics',   href: 'phonetics.html',  desc: 'Study the sound system, vowels, consonants, and phonotactics.' },
+  { id: 'philosophy', title: 'Philosophy',  href: 'philosophy.html', desc: 'Understand the ideas and intentions behind Meuvid.' },
+];
+`;
+
+  const blob = new Blob([content], { type: 'text/javascript' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'data.js'; a.click();
+  URL.revokeObjectURL(url);
+}
 
 const SVG_CHEVRON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"
   stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

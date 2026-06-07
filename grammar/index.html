@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meuvid — Grammar</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div id="topbar-container"></div>
   <div id="modal-container"></div>
@@ -17,10 +19,8 @@
   <script src="nav.js"></script>
   <script src="textpage.js"></script>
   <script>
-    AUTH.init();
-
     const page = createTextPage({
-      dataKey:     'mv_grammar',
+      dataKey: 'mv_grammar',
       defaultData: DEFAULT_GRAMMAR,
     });
 
@@ -36,4 +36,5 @@
     render();
   </script>
 </body>
+
 </html>

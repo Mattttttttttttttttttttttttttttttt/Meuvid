@@ -20,7 +20,8 @@ function initNav(currentPage, onLoginClick, onLogout) {
   ).join('');
 
   const authBtn = loggedIn
-    ? `<button class="btn btn-sm" id="nav-logout-btn">log out</button>`
+    ? `<button class="btn btn-sm btn-ghost" id="nav-export-btn">export data.js</button>
+       <button class="btn btn-sm" id="nav-logout-btn">log out</button>`
     : `<button class="btn btn-sm" id="nav-login-btn">log in</button>`;
 
   document.getElementById('topbar-container').innerHTML = `
@@ -31,8 +32,11 @@ function initNav(currentPage, onLoginClick, onLogout) {
       <div class="topbar-actions">${authBtn}</div>
     </header>`;
 
-  const loginBtn  = document.getElementById('nav-login-btn');
+  const loginBtn = document.getElementById('nav-login-btn');
   const logoutBtn = document.getElementById('nav-logout-btn');
-  if (loginBtn)  loginBtn.addEventListener('click', onLoginClick);
+  const exportBtn = document.getElementById('nav-export-btn');
+
+  if (loginBtn) loginBtn.addEventListener('click', onLoginClick);
   if (logoutBtn) logoutBtn.addEventListener('click', onLogout);
+  if (exportBtn) exportBtn.addEventListener('click', exportDataJS);
 }

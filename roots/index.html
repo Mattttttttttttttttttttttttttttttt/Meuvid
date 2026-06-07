@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meuvid — Roots</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div id="topbar-container"></div>
   <div id="modal-container"></div>
@@ -17,15 +19,13 @@
   <script src="nav.js"></script>
   <script src="dict.js"></script>
   <script>
-    AUTH.init();
-
     const page = createDictPage({
-      hasPos:      false,
-      dataKey:     'mv_roots',
+      hasPos: false,
+      dataKey: 'mv_roots',
       defaultData: DEFAULT_ROOTS,
-      kwTable:     ROOTS_KEYWORDS,
-      label:       'root',
-      noun:        'roots',
+      kwTable: ROOTS_KEYWORDS,
+      label: 'root',
+      noun: 'roots',
     });
 
     function render() {
@@ -40,4 +40,5 @@
     render();
   </script>
 </body>
+
 </html>

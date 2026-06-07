@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meuvid — Dictionary</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div id="topbar-container"></div>
   <div id="modal-container"></div>
@@ -17,15 +19,13 @@
   <script src="nav.js"></script>
   <script src="dict.js"></script>
   <script>
-    AUTH.init();
-
     const page = createDictPage({
-      hasPos:      true,
-      dataKey:     'mv_dict',
+      hasPos: true,
+      dataKey: 'mv_dict',
       defaultData: DEFAULT_DICT,
-      kwTable:     DICT_KEYWORDS,
-      label:       'word',
-      noun:        'words',
+      kwTable: DICT_KEYWORDS,
+      label: 'word',
+      noun: 'words',
     });
 
     function render() {
@@ -40,4 +40,5 @@
     render();
   </script>
 </body>
+
 </html>
