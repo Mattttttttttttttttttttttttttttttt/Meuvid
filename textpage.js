@@ -11,7 +11,7 @@
  * @param {string[]} cfg.defaultData - fallback paragraph array
  *
  * Data format:
- *   '# Heading'    → rendered as <h2>
+ *   '# Heading'    → rendered as <h1>
  *   '\\# Text'     → rendered as <p> showing literal "# Text"
  *   'Anything else' → rendered as <p>
  *
@@ -60,9 +60,9 @@ function createTextPage(cfg) {
     }
 
     let tag, cls, text;
-    if (isHead) { tag = 'h2'; cls = 'text-h1'; text = para.slice(2); }
-    else if (isEsc) { tag = 'p'; cls = 'text-p'; text = '# ' + para.slice(3); }
-    else { tag = 'p'; cls = 'text-p'; text = para; }
+    if (isHead) { tag = 'h1'; text = para.slice(2); }
+    else if (isEsc) { tag = 'p'; text = '# ' + para.slice(3); }
+    else { tag = 'p'; text = para; }
 
     const editBtn = AUTH.isLoggedIn()
       ? `<button class="btn btn-sm btn-ghost para-edit-btn"

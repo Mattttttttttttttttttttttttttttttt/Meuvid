@@ -166,7 +166,8 @@ body {
   line-height: 1;
   color: var(--text);
   margin: 0 auto 12px;
-  max-width: 660px;
+  max-width: 720px;
+  width: fit-content;
 }
 
 .page-subtitle {
@@ -176,7 +177,8 @@ body {
   color: var(--text-2);
   letter-spacing: 0.01em;
   margin: 0 auto;
-  max-width: 660px;
+  max-width: 720px;
+  width: fit-content;
 }
 
 /* ================================================================
@@ -365,12 +367,9 @@ body {
 /* ================================================================
    TEXT PAGES
    ================================================================ */
-.text-body {
-  max-width: 660px;
-}
-
 /* center the main text column so titles, subtitles, and actions align */
 .text-body {
+  max-width: 720px;
   margin: 0 auto;
 }
 
@@ -393,26 +392,14 @@ body {
 
 .para-block {
   position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.para-block>h2,
-.para-block>p {
-  flex: 1;
 }
 
 .para-edit-btn {
+  position: absolute;
+  left: -48px;
+  top: 2px;
   opacity: 0;
   transition: opacity var(--ease);
-  order: -1;
-  align-self: flex-start;
-  margin: 0;
-}
-
-h2~.para-edit-btn {
-  align-self: center;
 }
 
 .para-block:hover .para-edit-btn {
@@ -672,11 +659,12 @@ h2~.para-edit-btn {
 .section-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   margin: 16px auto 0;
-  max-width: 660px;
+  max-width: 720px;
   flex-wrap: wrap;
+  width: fit-content;
 }
 
 /* mobile-specific behavior deferred — no automatic hiding of edit buttons */
