@@ -21,18 +21,18 @@ function createTextPage(cfg) {
   const { dataKey, defaultData } = cfg;
 
   /* ── page-local state ── */
-  let data        = load(dataKey, defaultData);
-  let editIdx     = -1;
+  let data = load(dataKey, defaultData);
+  let editIdx = -1;
   let showAddForm = false;
-  let addType     = 'p';
-  let addText     = '';
-  let showRaw     = false;
-  let rawText     = '';
+  let addType = 'p';
+  let addText = '';
+  let showRaw = false;
+  let rawText = '';
 
   /* ── HTML for a single paragraph ── */
   function _paraHTML(para, idx) {
     const isHead = para.startsWith('# ');
-    const isEsc  = !isHead && para[0] === '\\' && para[1] === '#' && para[2] === ' ';
+    const isEsc = !isHead && para[0] === '\\' && para[1] === '#' && para[2] === ' ';
 
     if (editIdx === idx) {
       const displayVal = isHead ? para.slice(2) : (isEsc ? para.slice(3) : para);
@@ -60,9 +60,9 @@ function createTextPage(cfg) {
     }
 
     let tag, cls, text;
-    if (isHead)     { tag = 'h2'; cls = 'text-h1'; text = para.slice(2); }
-    else if (isEsc) { tag = 'p';  cls = 'text-p';  text = '# ' + para.slice(3); }
-    else            { tag = 'p';  cls = 'text-p';  text = para; }
+    if (isHead) { tag = 'h2'; cls = 'text-h1'; text = para.slice(2); }
+    else if (isEsc) { tag = 'p'; cls = 'text-p'; text = '# ' + para.slice(3); }
+    else { tag = 'p'; cls = 'text-p'; text = para; }
 
     const editBtn = AUTH.isLoggedIn()
       ? `<button class="btn btn-sm btn-ghost para-edit-btn"
@@ -70,7 +70,7 @@ function createTextPage(cfg) {
       : '';
 
     return `
-      <div class="para-block">
+      <div class="para-block" data-para-idx="${idx}">
         <${tag} class="${cls}">${esc(text)}</${tag}>
         ${editBtn}
       </div>`;
@@ -90,7 +90,7 @@ function createTextPage(cfg) {
                          color:var(--text-3)">type</span>
             <select class="form-select"
               style="width:auto;padding:4px 10px;font-size:14px" id="new-para-type">
-              <option value="p"${addType === 'p'  ? ' selected' : ''}>paragraph</option>
+              <option value="p"${addType === 'p' ? ' selected' : ''}>paragraph</option>
               <option value="h1"${addType === 'h1' ? ' selected' : ''}>heading</option>
             </select>
           </div>
@@ -139,6 +139,8 @@ function createTextPage(cfg) {
   }
 
   /* ── event binding ── */
+  /* mobile modal edits deferred — modal helper removed */
+
   function _bindEvents() {
     /* toggle add-form */
     const addBtn = document.getElementById('text-add-btn');
@@ -203,10 +205,12 @@ function createTextPage(cfg) {
       })
     );
 
+    /* mobile double-click editing paused */
+
     /* inline edit controls */
     const paraSave = document.getElementById('para-save-btn');
     if (paraSave) paraSave.addEventListener('click', () => {
-      const i    = editIdx;
+      const i = editIdx;
       const type = document.getElementById('para-type-sel')?.value || 'p';
       const text = (document.getElementById('para-edit-ta')?.value || '').trim();
       if (!text) return;

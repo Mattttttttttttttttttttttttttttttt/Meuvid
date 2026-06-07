@@ -13,8 +13,12 @@
 function initNav(currentPage, onLoginClick, onLogout) {
   const loggedIn = AUTH.isLoggedIn();
 
+  const path = window.location.pathname.replace(/\\/g, '/');
+  const currentDir = path.split('/').slice(-2, -1)[0];
+  const prefix = NAV_ITEMS.some(n => n.id === currentDir) ? '../' : '';
+
   const links = NAV_ITEMS.map(n => `
-    <a class="nav-link${currentPage === n.id ? ' active' : ''}" href="${n.href}">
+    <a class="nav-link${currentPage === n.id ? ' active' : ''}" href="${prefix}${n.href}">
       ${esc(n.label)}
     </a>`
   ).join('');
@@ -26,7 +30,7 @@ function initNav(currentPage, onLoginClick, onLogout) {
 
   document.getElementById('topbar-container').innerHTML = `
     <header class="topbar">
-      <a class="topbar-brand" href="index.html">Meuvid</a>
+      <a class="topbar-brand" href="${prefix}">Meuvid</a>
       <div class="topbar-sep"></div>
       <nav class="topbar-nav">${links}</nav>
       <div class="topbar-actions">${authBtn}</div>

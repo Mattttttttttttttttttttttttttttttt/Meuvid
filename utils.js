@@ -124,19 +124,19 @@ const ROOTS_KEYWORDS = ${_ser2D(ROOTS_KEYWORDS)};
 
 // Navigation items — id must match the page's active id passed to initNav()
 const NAV_ITEMS = [
-  { id: 'dict',       label: 'dictionary',  href: 'dict.html'       },
-  { id: 'grammar',    label: 'grammar',     href: 'grammar.html'    },
-  { id: 'roots',      label: 'roots',       href: 'roots.html'      },
-  { id: 'phonetics',  label: 'phonetics',   href: 'phonetics.html'  },
-  { id: 'philosophy', label: 'philosophy\u2026', href: 'philosophy.html' },
+  { id: 'dict',       label: 'dictionary',  href: 'dict'       },
+  { id: 'grammar',    label: 'grammar',     href: 'grammar'    },
+  { id: 'roots',      label: 'roots',       href: 'roots'      },
+  { id: 'phonetics',  label: 'phonetics',   href: 'phonetics'  },
+  { id: 'philosophy', label: 'philosophy…', href: 'philosophy' },
 ];
 
 const HOME_CARDS = [
-  { id: 'dict',       title: 'Dictionary',  href: 'dict.html',       desc: 'Browse and search Meuvid words, parts of speech, and definitions.' },
-  { id: 'grammar',    title: 'Grammar',     href: 'grammar.html',    desc: 'Learn the grammatical structure and rules governing Meuvid.' },
-  { id: 'roots',      title: 'Roots',       href: 'roots.html',      desc: 'Explore the morphological roots from which Meuvid words are built.' },
-  { id: 'phonetics',  title: 'Phonetics',   href: 'phonetics.html',  desc: 'Study the sound system, vowels, consonants, and phonotactics.' },
-  { id: 'philosophy', title: 'Philosophy',  href: 'philosophy.html', desc: 'Understand the ideas and intentions behind Meuvid.' },
+  { id: 'dict',       title: 'Dictionary',  href: 'dict',       desc: 'Browse and search Meuvid words, parts of speech, and definitions.' },
+  { id: 'grammar',    title: 'Grammar',     href: 'grammar',    desc: 'Learn the grammatical structure and rules governing Meuvid.' },
+  { id: 'roots',      title: 'Roots',       href: 'roots',      desc: 'Explore the morphological roots from which Meuvid words are built.' },
+  { id: 'phonetics',  title: 'Phonetics',   href: 'phonetics',  desc: 'Study the sound system, vowels, consonants, and phonotactics.' },
+  { id: 'philosophy', title: 'Philosophy',  href: 'philosophy', desc: 'Understand the ideas and intentions behind Meuvid.' },
 ];
 `;
 
