@@ -7,20 +7,20 @@
  * Create a dictionary/roots page.
  *
  * @param {object} cfg
- * @param {boolean}  cfg.hasPos       - true for dictionary (has POS field), false for roots
- * @param {string}   cfg.dataKey      - localStorage key, e.g. 'mv_dict'
- * @param {Array[]}  cfg.defaultData  - fallback data array
- * @param {Array[]}  cfg.kwTable      - keywords table (DICT_KEYWORDS or ROOTS_KEYWORDS)
- * @param {string}   cfg.label        - singular label, e.g. 'word' or 'root'
- * @param {string}   cfg.noun         - plural label, e.g. 'words' or 'roots'
+ * @param {boolean}  cfg.hasPos     - true for dictionary (has POS field), false for roots
+ * @param {string}   cfg.dataKey    - localStorage key, e.g. 'mv_dict'
+ * @param {Array[]}  cfg.dataRaw    - fallback data array
+ * @param {Array[]}  cfg.kwTable    - keywords table (DICT_KEYWORDS or ROOTS_KEYWORDS)
+ * @param {string}   cfg.label      - singular label, e.g. 'word' or 'root'
+ * @param {string}   cfg.noun       - plural label, e.g. 'words' or 'roots'
  *
  * @returns {{ render: Function }}
  */
 function createDictPage(cfg) {
-  const { hasPos, dataKey, defaultData, kwTable, label, noun } = cfg;
+  const { hasPos, dataKey, dataRaw, kwTable, label, noun } = cfg;
 
   /* ── page-local state ── */
-  let data        = load(dataKey, defaultData);
+  let data        = load(dataKey, dataRaw);
   let query       = '';
   let showKwModal = false;
   let showAddForm = false;

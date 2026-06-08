@@ -14,6 +14,7 @@
   <div id="app"></div>
 
   <script src="../data.js"></script>
+  <script src="../lang-data.js"></script>
   <script src="../utils.js"></script>
   <script src="../auth.js"></script>
   <script src="../nav.js"></script>
@@ -22,7 +23,7 @@
     const page = createDictPage({
       hasPos: false,
       dataKey: 'mv_roots',
-      defaultData: DEFAULT_ROOTS,
+      dataRaw: ROOTS,
       kwTable: ROOTS_KEYWORDS,
       label: 'root',
       noun: 'roots',

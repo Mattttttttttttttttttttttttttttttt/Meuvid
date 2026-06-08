@@ -7,8 +7,8 @@
  * Create a text-content page.
  *
  * @param {object}   cfg
- * @param {string}   cfg.dataKey     - localStorage key, e.g. 'mv_grammar'
- * @param {string[]} cfg.defaultData - fallback paragraph array
+ * @param {string}   cfg.dataKey   - localStorage key, e.g. 'mv_grammar'
+ * @param {string[]} cfg.dataRaw   - fallback paragraph array
  *
  * Data format:
  *   '# Heading'    → rendered as <h1>
@@ -18,10 +18,10 @@
  * @returns {{ render: Function }}
  */
 function createTextPage(cfg) {
-  const { dataKey, defaultData } = cfg;
+  const { dataKey, dataRaw } = cfg;
 
   /* ── page-local state ── */
-  let data = load(dataKey, defaultData);
+  let data = load(dataKey, dataRaw);
   let editIdx = -1;
   let showAddForm = false;
   let addType = 'p';
@@ -78,7 +78,7 @@ function createTextPage(cfg) {
 
   /* ── full page HTML ── */
   function _pageHTML() {
-    const paras = data.map((p, i) => _paraHTML(p, i)).join('');
+    const paras = dataRaw.map((p, i) => _paraHTML(p, i)).join('');
 
     let editControls = '';
     if (AUTH.isLoggedIn()) {
@@ -154,7 +154,7 @@ function createTextPage(cfg) {
     const rawBtn = document.getElementById('text-raw-btn');
     if (rawBtn) rawBtn.addEventListener('click', () => {
       showRaw = !showRaw;
-      if (showRaw) { rawText = data.join('\n\n'); showAddForm = false; editIdx = -1; }
+      if (showRaw) { rawText = dataRaw.join('\n\n'); showAddForm = false; editIdx = -1; }
       render();
     });
 
@@ -172,8 +172,8 @@ function createTextPage(cfg) {
     if (newSave) newSave.addEventListener('click', () => {
       const text = (document.getElementById('new-para-ta')?.value || '').trim();
       if (!text) return;
-      data = [...data, addType === 'h1' ? '# ' + text : text];
-      save(dataKey, data);
+      dataRaw = [...dataRaw, addType === 'h1' ? '# ' + text : text];
+      save(dataKey, dataRaw);
       showAddForm = false; addText = '';
       render();
     });
@@ -187,8 +187,8 @@ function createTextPage(cfg) {
 
     const rawApply = document.getElementById('raw-apply-btn');
     if (rawApply) rawApply.addEventListener('click', () => {
-      data = rawText.split('\n\n').map(s => s.trim()).filter(Boolean);
-      save(dataKey, data);
+      dataRaw = rawText.split('\n\n').map(s => s.trim()).filter(Boolean);
+      save(dataKey, dataRaw);
       showRaw = false; editIdx = -1;
       render();
     });
@@ -214,8 +214,8 @@ function createTextPage(cfg) {
       const type = document.getElementById('para-type-sel')?.value || 'p';
       const text = (document.getElementById('para-edit-ta')?.value || '').trim();
       if (!text) return;
-      data[i] = type === 'h1' ? '# ' + text : text;
-      save(dataKey, data);
+      dataRaw[i] = type === 'h1' ? '# ' + text : text;
+      save(dataKey, dataRaw);
       editIdx = -1;
       render();
     });
@@ -227,8 +227,8 @@ function createTextPage(cfg) {
     if (paraUp) paraUp.addEventListener('click', () => {
       const i = editIdx;
       if (i <= 0) return;
-      [data[i], data[i - 1]] = [data[i - 1], data[i]];
-      save(dataKey, data);
+      [dataRaw[i], dataRaw[i - 1]] = [dataRaw[i - 1], dataRaw[i]];
+      save(dataKey, dataRaw);
       editIdx = i - 1;
       render();
     });
@@ -236,9 +236,9 @@ function createTextPage(cfg) {
     const paraDown = document.getElementById('para-down-btn');
     if (paraDown) paraDown.addEventListener('click', () => {
       const i = editIdx;
-      if (i >= data.length - 1) return;
-      [data[i], data[i + 1]] = [data[i + 1], data[i]];
-      save(dataKey, data);
+      if (i >= dataRaw.length - 1) return;
+      [dataRaw[i], dataRaw[i + 1]] = [dataRaw[i + 1], dataRaw[i]];
+      save(dataKey, dataRaw);
       editIdx = i + 1;
       render();
     });
@@ -247,8 +247,8 @@ function createTextPage(cfg) {
     if (paraDel) paraDel.addEventListener('click', () => {
       if (!confirm('Delete this paragraph?')) return;
       const i = editIdx;
-      data = data.filter((_, idx) => idx !== i);
-      save(dataKey, data);
+      dataRaw = dataRaw.filter((_, idx) => idx !== i);
+      save(dataKey, dataRaw);
       editIdx = -1;
       render();
     });

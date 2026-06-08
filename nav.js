@@ -24,7 +24,7 @@ function initNav(currentPage, onLoginClick, onLogout) {
   ).join('');
 
   const authBtn = loggedIn
-    ? `<button class="btn btn-sm btn-ghost" id="nav-export-btn">export data.js</button>
+    ? `<button class="btn btn-sm btn-ghost" id="nav-export-btn">export data</button>
        <button class="btn btn-sm" id="nav-logout-btn">log out</button>`
     : `<button class="btn btn-sm" id="nav-login-btn">log in</button>`;
 

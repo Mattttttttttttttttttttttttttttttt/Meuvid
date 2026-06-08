@@ -14,6 +14,7 @@
   <div id="app"></div>
 
   <script src="data.js"></script>
+  <script src="lang-data.js"></script>
   <script src="utils.js"></script>
   <script src="auth.js"></script>
   <script src="nav.js"></script>
@@ -26,8 +27,8 @@
         () => { AUTH.logout(); render(); }
       );
       renderHome(
-        load('mv_dict', DEFAULT_DICT),
-        load('mv_roots', DEFAULT_ROOTS)
+        load('mv_dict', DICT),
+        load('mv_roots', ROOTS)
       );
     }
 

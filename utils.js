@@ -85,65 +85,38 @@ function _ser1D(arr) {
 }
 
 /**
- * Build a fresh data.js from current localStorage state and trigger a download.
- * Replace the data.js in your project folder with the downloaded file, then redeploy.
+ * Build a fresh lang-data.js from current localStorage state and trigger a download.
  */
 function exportDataJS() {
-  const dict = load('mv_dict', DEFAULT_DICT);
-  const roots = load('mv_roots', DEFAULT_ROOTS);
-  const grammar = load('mv_grammar', DEFAULT_GRAMMAR);
-  const phonetics = load('mv_phonetics', DEFAULT_PHONETICS);
-  const philosophy = load('mv_philosophy', DEFAULT_PHILOSOPHY);
+  const dict = load('mv_dict', DICT);
+  const roots = load('mv_roots', ROOTS);
+  const grammar = load('mv_grammar', GRAMMAR);
+  const phonetics = load('mv_phonetics', PHONETICS);
+  const philosophy = load('mv_philosophy', PHILOSOPHY);
 
   const ts = new Date().toISOString();
 
   const content =
     `/* ================================================================
-   data.js — all static data arrays and navigation config
-   Last edited: ${ts}
+   lang-data.js — all language data arrays
+   Last updated: ${ts}
    ================================================================ */
 
-// SHA-256 hash of the admin password.
-// Hardcode this value manually. All devices check against it directly.
-const AUTH_HASH = ${JSON.stringify(AUTH_HASH)};
+const DICT = ${_ser2D(dict)};
 
-const DEFAULT_DICT = ${_ser2D(dict)};
+const ROOTS = ${_ser2D(roots)};
 
-const DEFAULT_ROOTS = ${_ser2D(roots)};
+const GRAMMAR = ${_ser1D(grammar)};
 
-const DEFAULT_GRAMMAR = ${_ser1D(grammar)};
+const PHONETICS = ${_ser1D(phonetics)};
 
-const DEFAULT_PHONETICS = ${_ser1D(phonetics)};
-
-const DEFAULT_PHILOSOPHY = ${_ser1D(philosophy)};
-
-// [keyword, description] — shown in the ? modal
-const DICT_KEYWORDS = ${_ser2D(DICT_KEYWORDS)};
-
-const ROOTS_KEYWORDS = ${_ser2D(ROOTS_KEYWORDS)};
-
-// Navigation items — id must match the page's active id passed to initNav()
-const NAV_ITEMS = [
-  { id: 'dict',       label: 'dictionary',  href: 'dict'       },
-  { id: 'grammar',    label: 'grammar',     href: 'grammar'    },
-  { id: 'roots',      label: 'roots',       href: 'roots'      },
-  { id: 'phonetics',  label: 'phonetics',   href: 'phonetics'  },
-  { id: 'philosophy', label: 'philosophy…', href: 'philosophy' },
-];
-
-const HOME_CARDS = [
-  { id: 'dict',       title: 'Dictionary',  href: 'dict',       desc: 'Browse and search Meuvid words, parts of speech, and definitions.' },
-  { id: 'grammar',    title: 'Grammar',     href: 'grammar',    desc: 'Learn the grammatical structure and rules governing Meuvid.' },
-  { id: 'roots',      title: 'Roots',       href: 'roots',      desc: 'Explore the morphological roots from which Meuvid words are built.' },
-  { id: 'phonetics',  title: 'Phonetics',   href: 'phonetics',  desc: 'Study the sound system, vowels, consonants, and phonotactics.' },
-  { id: 'philosophy', title: 'Philosophy',  href: 'philosophy', desc: 'Understand the ideas and intentions behind Meuvid.' },
-];
+const PHILOSOPHY = ${_ser1D(philosophy)};
 `;
 
   const blob = new Blob([content], { type: 'text/javascript' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'data.js'; a.click();
+  a.href = url; a.download = 'lang-data.js'; a.click();
   URL.revokeObjectURL(url);
 }
 
