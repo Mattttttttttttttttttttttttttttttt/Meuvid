@@ -8,7 +8,6 @@ const AUTH = (function () {
   /* ── private ── */
 
   let _onSuccess = null;
-  let _loginError = '';
 
   function _modalContainer() {
     return document.getElementById('modal-container');
@@ -21,7 +20,6 @@ const AUTH = (function () {
   }
 
   function _loginModalHTML() {
-    const err = _loginError ? `<p class="err-msg">${esc(_loginError)}</p>` : '';
     return `
       <div class="overlay" id="auth-overlay">
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
@@ -34,7 +32,7 @@ const AUTH = (function () {
             <input class="form-input" type="password" id="login-pw"
               placeholder="enter password" autocomplete="current-password" />
           </div>
-          ${err}
+          <p class="err-msg" id="login-err" style="display:none"></p>
           <button class="btn btn-primary" id="login-submit"
             style="width:100%;justify-content:center">log in</button>
         </div>
@@ -43,7 +41,6 @@ const AUTH = (function () {
 
   function _closeModal() {
     _modalContainer().innerHTML = '';
-    _loginError = '';
   }
 
   function _renderModal() {
@@ -68,8 +65,11 @@ const AUTH = (function () {
         _closeModal();
         _onSuccess && _onSuccess();
       } else {
-        _loginError = 'Incorrect password.';
-        _renderModal();
+        /* show error in-place — no modal rebuild, focus stays in the field */
+        const errEl = document.getElementById('login-err');
+        if (errEl) { errEl.textContent = 'Incorrect password.'; errEl.style.display = ''; }
+        const pwEl = document.getElementById('login-pw');
+        if (pwEl) { pwEl.value = ''; pwEl.focus(); }
       }
     };
 
@@ -98,7 +98,6 @@ const AUTH = (function () {
      */
     showLoginModal(onSuccess) {
       _onSuccess = onSuccess;
-      _loginError = '';
       _renderModal();
     },
   };

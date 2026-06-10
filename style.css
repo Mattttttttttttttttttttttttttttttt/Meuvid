@@ -12,7 +12,7 @@
   --border-2: #32323a;
   --text: #d8d8d3;
   --text-2: #aaaab5;
-  --text-3: #4d4d58;
+  --text-3: #8b8b98;
   --danger: #b83c3c;
   --r-xs: 6px;
   --r-sm: 10px;
@@ -319,6 +319,7 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.dict-entry-wrapper:first-child>.dict-entry,
 .dict-entry:first-child {
   border-top: 1px solid var(--border);
 }
@@ -360,10 +361,6 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.entry-edit-row:first-child {
-  border-top: 1px solid var(--border);
-}
-
 /* ================================================================
    TEXT PAGES
    ================================================================ */
@@ -373,7 +370,7 @@ body {
   margin: 0 auto;
 }
 
-.para-block>h1 {
+.para-content>h1 {
   font-size: 36px;
   font-weight: 600;
   color: var(--text);
@@ -382,7 +379,7 @@ body {
   margin: 40px 0 30px;
 }
 
-.para-block>p {
+.para-content>p {
   font-size: 18.5px;
   font-weight: 300;
   color: var(--text-2);
@@ -392,6 +389,12 @@ body {
 
 .para-block {
   position: relative;
+}
+
+/* para-content is the new positioned host for the hover edit button */
+.para-content {
+  position: relative;
+  transition: opacity 0.2s ease;
 }
 
 .para-edit-btn {
@@ -667,7 +670,83 @@ body {
   width: fit-content;
 }
 
-/* mobile-specific behavior deferred — no automatic hiding of edit buttons */
+/* ================================================================
+   EDIT FORM COLLAPSE / EXPAND
+   ================================================================ */
+/*
+  Pattern: .edit-collapse wraps every pre-rendered form.
+  Toggle .open to animate it in/out.
+  grid-template-rows trick allows transitioning from height 0 → auto.
+*/
+.edit-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+  transition: grid-template-rows 0.2s ease, opacity 0.2s ease;
+}
+
+.edit-collapse.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* overflow:hidden clips content; visibility keeps hidden inputs out of tab order */
+.edit-collapse-inner {
+  overflow: hidden;
+  visibility: hidden;
+  transition: visibility 0s 0.2s; /* delay matches collapse duration */
+}
+
+.edit-collapse.open > .edit-collapse-inner {
+  visibility: visible;
+  transition: visibility 0s; /* reveal immediately so autofocus works */
+}
+
+/* Dim the entry display row while its edit form is open */
+.dict-entry-wrapper > .dict-entry {
+  transition: opacity 0.2s ease;
+}
+
+.dict-entry-wrapper.editing > .dict-entry {
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+/* Dim the paragraph text while its edit form is open */
+.para-block.editing > .para-content {
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+/* Inline rich-text markup rendered inside text-page paragraphs and headings */
+.para-content > p b  { font-weight: 600; }
+.para-content > p i, .para-content > h1 i  { font-style: italic; }
+.para-content > p u, .para-content > h1 u  { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--text-3); }
+.para-content > h1 b { font-weight: 700; }
+
+/* ================================================================
+   CONFIRMATION MODAL
+   ================================================================ */
+.modal-sm {
+  max-width: 340px;
+  padding: 28px 30px 24px;
+}
+
+.confirm-msg {
+  font-size: 17px;
+  color: var(--text);
+  font-weight: 300;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
 
 .raw-edit-area {
   font-family: 'Courier New', monospace;
@@ -701,4 +780,26 @@ code {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ================================================================
+   VIEW TRANSITIONS  (cross-document, Chrome 126+)
+   Requires HTTP/HTTPS — does not fire on file:// (null-origin pages).
+   ================================================================ */
+@view-transition {
+  navigation: auto;
+}
+
+@keyframes vt-fade-out {
+  to { opacity: 0; }
+}
+
+/* Outgoing page fades out; incoming page is shown at full opacity so
+   .page's existing fadeUp animation plays without compounding. */
+::view-transition-old(root) {
+  animation: 0.16s ease-in both vt-fade-out;
+}
+
+::view-transition-new(root) {
+  animation: none;
 }
