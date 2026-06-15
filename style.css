@@ -248,7 +248,6 @@ body {
   justify-content: space-between;
   margin-top: 14px;
   padding-top: 13px;
-  border-top: 1px solid var(--border);
 }
 
 .card-meta {
@@ -815,4 +814,238 @@ code {
 
 ::view-transition-new(root) {
   animation: none;
+}
+
+/* ================================================================
+   MOBILE NAV  (hamburger pivot)
+   ================================================================ */
+/* The hamburger button + drop-down menu exist in the DOM at all sizes but
+   are hidden on wide screens, where the inline .topbar-nav is shown instead. */
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  transition: color var(--ease), background var(--ease);
+}
+
+.nav-toggle:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* hamburger → X morph */
+.nav-toggle line {
+  transition: transform var(--ease), opacity var(--ease);
+  transform-origin: center;
+}
+
+.nav-toggle.active .ham-top {
+  transform: translateY(5px) rotate(45deg);
+}
+
+.nav-toggle.active .ham-mid {
+  opacity: 0;
+}
+
+.nav-toggle.active .ham-bot {
+  transform: translateY(-5px) rotate(-45deg);
+}
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  top: 56px;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  flex-direction: column;
+  padding: 10px 16px 18px;
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border);
+  /* collapsed state for the drop-down animation */
+  transform: translateY(-8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+
+.mobile-menu.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-menu-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-nav-link {
+  display: block;
+  padding: 13px 12px;
+  font-size: 19px;
+  color: var(--text-2);
+  text-decoration: none;
+  border-radius: var(--r-sm);
+  border-bottom: 1px solid var(--border);
+  transition: color var(--ease), background var(--ease);
+}
+
+.mobile-nav-link:last-child {
+  border-bottom: none;
+}
+
+.mobile-nav-link:hover,
+.mobile-nav-link.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mobile-menu-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.mobile-menu-actions .btn {
+  flex: 1;
+  justify-content: center;
+  font-size: 15px;
+  padding: 9px 14px;
+}
+
+.mobile-menu-backdrop {
+  display: none;
+  position: fixed;
+  inset: 56px 0 0;
+  z-index: 98;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.mobile-menu-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Pivot point: the inline nav no longer fits, switch to the hamburger ── */
+@media (max-width: 820px) {
+  .topbar-nav,
+  .topbar-actions,
+  .topbar-sep-nav {
+    display: none;
+  }
+
+  .nav-toggle {
+    display: flex;
+  }
+
+  .mobile-menu,
+  .mobile-menu-backdrop {
+    display: flex;
+  }
+}
+
+/* ── Very narrow: shrink the bar so cat + "Meuvid" + hamburger still fit ── */
+@media (max-width: 380px) {
+  .topbar {
+    padding: 0 14px;
+  }
+
+  .topbar-sep {
+    margin: 0 12px;
+  }
+
+  .topbar-brand {
+    font-size: 18px;
+  }
+}
+
+/* ================================================================
+   MOBILE LAYOUT  (general responsive pass)
+   ================================================================ */
+@media (max-width: 820px) {
+  .topbar {
+    padding: 0 28px;
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: 40px 28px 80px;
+  }
+
+  .page-header {
+    margin-bottom: 38px;
+  }
+
+  .page-subtitle {
+    font-size: 20px;
+  }
+
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    padding: 22px 22px 18px;
+  }
+
+  /* Dictionary / roots rows: let the word + actions share the top line and
+     drop the definition body onto its own full-width line instead of being
+     crushed into a sliver of space. */
+  .dict-entry {
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+
+  .dict-word {
+    min-width: 0;
+  }
+
+  .dict-body {
+    flex: 1 1 100%;
+  }
+
+  /* Hover-only edit button would otherwise overflow the left edge */
+  .para-edit-btn {
+    left: auto;
+    right: 0;
+    top: -34px;
+  }
+
+  .para-content > h1 {
+    font-size: 30px;
+  }
+
+  .para-content > p {
+    font-size: 17px;
+    line-height: 1.7;
+  }
+
+  .modal {
+    padding: 24px 22px;
+  }
+
+  .modal-title {
+    font-size: 23px;
+  }
+
+  .search-input {
+    font-size: 17px;
+    padding: 12px 18px;
+  }
 }
