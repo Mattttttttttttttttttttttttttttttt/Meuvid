@@ -8,14 +8,14 @@ const AUTH_HASH = "4cb8efb4109f27d07edf5c585614f55ca0bcd5f981e2e33e6a527f1387a81
 
 // [keyword, description] — shown in the ? modal
 const DICT_KEYWORDS = [
-  ["pos(x)", "Match words whose part of speech contains x. E.g. pos(n.) for nouns, pos(v.) for verbs."],
+  ["pos(x)", "Match parts of speech. E.g. pos(n.) for nouns, pos(v.) for verbs."],
   ["all(x)", "Match x across all fields: the word itself, its part of speech, and its definition."],
-  ["def(x)", "Match x only within the definition field, ignoring the word string and POS."],
+  ["def(x)", "Match definitions."],
 ];
 
 const ROOTS_KEYWORDS = [
-  ["all(x)", "Match x across all fields: the root string and its definition."],
-  ["def(x)", "Match x only within the definition field."],
+  ["all(x)", "Match x across all fields: the root itself and its definition."],
+  ["def(x)", "Match definitions."],
 ];
 
 // Navigation items — id must match the page's active id passed to initNav()
@@ -28,9 +28,9 @@ const NAV_ITEMS = [
 ];
 
 const HOME_CARDS = [
-  { id: 'dict', title: 'Dictionary', href: 'dict', desc: 'Browse and search Meuvid words, parts of speech, and definitions.' },
-  { id: 'grammar', title: 'Grammar', href: 'grammar', desc: 'Learn the grammatical structure and rules governing Meuvid.' },
-  { id: 'roots', title: 'Roots', href: 'roots', desc: 'Explore the morphological roots from which Meuvid words are built.' },
-  { id: 'phonetics', title: 'Phonetics', href: 'phonetics', desc: 'Study the sound system, vowels, consonants, and phonotactics.' },
-  { id: 'philosophy', title: 'Philosophy', href: 'philosophy', desc: 'Understand the ideas and intentions behind Meuvid.' },
+  { id: 'dict', title: 'Dictionary', href: 'dict', desc: 'Meuvid words and definitions' },
+  { id: 'grammar', title: 'Grammar', href: 'grammar', desc: 'the grammar and discourse markers' },
+  { id: 'roots', title: 'Roots', href: 'roots', desc: 'build words from roots' },
+  { id: 'phonetics', title: 'Phonetics', href: 'phonetics', desc: 'Meuvid\'s easy pronunciation rules' },
+  { id: 'philosophy', title: 'Philosophy', href: 'philosophy', desc: 'communication guidelines and more' },
 ];
