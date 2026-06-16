@@ -220,7 +220,9 @@ function initGlobalShortcuts() {
 
 /**
  * Filter a data array by a search query.
- * Supports keywords: pos(x), all(x), def(x).
+ * Supports keyword functions: pos(x), all(x), def(x). The closing paren is
+ * optional, so "pos(a" behaves the same as "pos(a)". If the text before "("
+ * isn't a recognized function, the whole query is treated as a literal search.
  * Default: match the word string, starts-with first.
  *
  * @param {Array[]} data    - 2D array of entries
@@ -230,22 +232,19 @@ function initGlobalShortcuts() {
 function filterEntries(data, query, hasPos) {
   if (!query.trim()) return data;
   const q = query.trim();
-  const posM = q.match(/^pos\((.+)\)$/i);
-  const allM = q.match(/^all\((.+)\)$/i);
-  const defM = q.match(/^def\((.+)\)$/i);
 
-  if (posM && hasPos) {
-    const t = posM[1].toLowerCase();
-    return data.filter(e => e[1].toLowerCase().includes(t));
-  }
-  if (allM) {
-    const t = allM[1].toLowerCase();
-    return data.filter(e => e.some(f => f.toLowerCase().includes(t)));
-  }
-  if (defM) {
-    const t = defM[1].toLowerCase();
-    const idx = hasPos ? 2 : 1;
-    return data.filter(e => e[idx].toLowerCase().includes(t));
+  // name( ... ) with an optional trailing ")" — captures the function name and arg
+  const fnM = q.match(/^([a-z]+)\((.*?)\)?$/i);
+  if (fnM) {
+    const fn = fnM[1].toLowerCase();
+    const t  = fnM[2].toLowerCase();
+    if (fn === 'pos' && hasPos) return data.filter(e => e[1].toLowerCase().includes(t));
+    if (fn === 'all')          return data.filter(e => e.some(f => f.toLowerCase().includes(t)));
+    if (fn === 'def') {
+      const idx = hasPos ? 2 : 1;
+      return data.filter(e => e[idx].toLowerCase().includes(t));
+    }
+    // unrecognized function name → fall through to literal search
   }
 
   // Default: match word string; starts-with has priority
