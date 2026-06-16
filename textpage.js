@@ -80,7 +80,7 @@ function createTextPage(cfg) {
     return `
       <div class="para-block" data-para-idx="${idx}">
         <div class="para-content">
-          <${tag}>${text}</${tag}>
+          <${tag}>${text.replace(/\n/g, '<br>')}</${tag}>
           ${editBtn}
         </div>
         ${editForm}
@@ -261,8 +261,8 @@ function createTextPage(cfg) {
 
     /* delete — commits pending moves along with the deletion as one undo entry */
     document.querySelectorAll('[data-para-del]').forEach(btn =>
-      btn.addEventListener('click', async () => {
-        if (!await showConfirm('Delete this paragraph?', 'delete')) return;
+      btn.addEventListener('click', async e => {
+        if (!await showConfirm('Delete this paragraph?', 'delete', e)) return;
         const i      = parseInt(btn.dataset.paraDel);
         const before = _editSnapshot ?? [...data];
         data = data.filter((_, idx) => idx !== i);
@@ -367,12 +367,11 @@ function createTextPage(cfg) {
       data = [...data, type === 'h1' ? '# ' + text : text];
       save(dataKey, data);
       pushUndo(dataKey, before, [...data]);
-      document.getElementById('add-form-collapse')?.classList.remove('open');
-      const addBtnEl = document.getElementById('text-add-btn');
-      if (addBtnEl) addBtnEl.textContent = '+ add paragraph';
+      /* keep the add form open for rapid entry — just clear and refocus */
       const ta = document.getElementById('new-para-ta');
       if (ta) ta.value = '';
       _refreshBody();
+      setTimeout(() => document.getElementById('new-para-ta')?.focus(), 20);
     });
 
     /* add-form textarea: Ctrl+Enter to submit, Ctrl+B/I/U for formatting */

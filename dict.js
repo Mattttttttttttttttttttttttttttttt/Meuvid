@@ -217,10 +217,10 @@ function createDictPage(cfg) {
 
     /* delete */
     document.querySelectorAll('[data-delete]').forEach(btn =>
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async e => {
         const idx  = parseInt(btn.dataset.delete);
         const word = data[idx]?.[0] || '';
-        if (!await showConfirm(`Delete "${word}"?`, 'delete')) return;
+        if (!await showConfirm(`Delete "${word}"?`, 'delete', e)) return;
         const before = JSON.parse(JSON.stringify(data));
         data = data.filter((_, i) => i !== idx);
         save(dataKey, data);

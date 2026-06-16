@@ -92,11 +92,26 @@ function wrapSelectedText(ta, open, close) {
 /**
  * Show a styled yes/no dialog. Returns a Promise that resolves to true (confirmed)
  * or false (cancelled). Cancel button is focused by default.
+ * Shift-clicking the triggering control bypasses the dialog: pass the
+ * originating event and the Promise resolves immediately to true.
  * @param {string} message
  * @param {string} [confirmLabel='confirm']
+ * @param {Event}  [event] originating event; if shiftKey is held, skip the dialog
  */
-function showConfirm(message, confirmLabel = 'confirm') {
+/* Track whether Shift is currently held via keyboard events. Some input setups
+ * (e.g. certain Linux configs) don't populate the modifier flags on mouse/pointer
+ * events, so reading event.shiftKey on a click is unreliable — keyboard events do
+ * carry the state. window blur resets it so we don't get stuck "held". */
+let _shiftHeld = false;
+document.addEventListener('keydown', e => { if (e.key === 'Shift') _shiftHeld = true;  }, true);
+document.addEventListener('keyup',   e => { if (e.key === 'Shift') _shiftHeld = false; }, true);
+window.addEventListener('blur', () => { _shiftHeld = false; });
+
+function showConfirm(message, confirmLabel = 'confirm', event = null) {
+  if ((event && event.shiftKey) || _shiftHeld) return Promise.resolve(true);
   return new Promise(resolve => {
+    // Clear any lingering text selection so the modal doesn't render highlighted.
+    window.getSelection()?.removeAllRanges();
     const container = document.getElementById('modal-container');
     container.innerHTML = `
       <div class="overlay" id="confirm-overlay">
