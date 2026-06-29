@@ -74,7 +74,7 @@ const DICT = [
   ["rinsi", "adj.", "able: [person] has many abilities"],
   ["she", "v.", "=sher [mo she ⇒ mosh]"],
   ["sher", "v.", "be: has the property (characteristic) that"],
-  ["sher", "n.", "time"],
+  ["sher", "n.", "time", 1],
   ["sheren", "v.", "=sher [for all plural pronouns]"],
   ["sherm", "v.", "=sher [blop sherm]"],
   ["shert", "v.", "=sher [laen shert]"],
@@ -164,3 +164,14 @@ const PHILOSOPHY = [
   "# communication > grammar",
   "Yes. You can violate any and all of grammar, as long as you are perfectly sure the same meaning will be conveyed across. Note that grammar in Meuvid is designed to enhance clarity and remove ambiguity. The rules are not arbitrary, so do not violate them for no good reason.",
 ];
+
+const SECTIONS = [
+  ["pronouns", [
+    "Meuvid pronouns mark person and number; the third person defaults to gender-neutral.",
+    ["mo"],
+    ["blop"],
+    ["laen"],
+  ]],
+];
+
+const ROOTS_SECTIONS = [];

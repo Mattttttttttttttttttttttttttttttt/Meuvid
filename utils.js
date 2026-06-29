@@ -151,6 +151,13 @@ let _escCleanup = null;
 function setEscCleanup(fn) { _escCleanup = fn; }
 function clearEscCleanup() { _escCleanup = null; }
 
+/*
+ * _escHandler: registered by a page (e.g. the section view) to close its own
+ * transient UI on Escape. Returns true when it handled the key.
+ */
+let _escHandler = null;
+function registerEscHandler(fn) { _escHandler = fn; }
+
 /**
  * Register site-wide keyboard shortcuts once per page load.
  * Called by initNav on its first render so AUTH is guaranteed to be defined.
@@ -193,6 +200,8 @@ function initGlobalShortcuts() {
       if (document.getElementById('confirm-overlay')) return;
       // If a textpage edit session is active, revert moves and close
       if (_escCleanup) { _escCleanup(); _escCleanup = null; return; }
+      // Let a page-registered handler (section view) close its own UI first
+      if (_escHandler && _escHandler()) return;
       // Otherwise do the normal CSS-only close for dict and textpage forms
       document.querySelectorAll('.dict-entry-wrapper.editing').forEach(w => {
         w.classList.remove('editing');
@@ -239,7 +248,7 @@ function filterEntries(data, query, hasPos) {
     const fn = fnM[1].toLowerCase();
     const t  = fnM[2].toLowerCase();
     if (fn === 'pos' && hasPos) return data.filter(e => e[1].toLowerCase().includes(t));
-    if (fn === 'all')          return data.filter(e => e.some(f => f.toLowerCase().includes(t)));
+    if (fn === 'all')          return data.filter(e => e.some(f => String(f).toLowerCase().includes(t)));
     if (fn === 'def') {
       const idx = hasPos ? 2 : 1;
       return data.filter(e => e[idx].toLowerCase().includes(t));
@@ -276,6 +285,23 @@ function _ser1D(arr) {
 }
 
 /**
+ * Serialize the SECTIONS dataset. Each section is [headingText, itemsArray];
+ * an item is either a string (paragraph) or an array (a referenced word entry).
+ */
+function _serSections(arr) {
+  const secs = arr.map(([heading, items]) => {
+    const lines = (items || []).map(it =>
+      Array.isArray(it)
+        ? '    [' + it.map(s => JSON.stringify(s)).join(', ') + ']'
+        : '    ' + JSON.stringify(it)
+    ).join(',\n');
+    const body = lines ? `\n${lines},\n  ` : '';
+    return `  [${JSON.stringify(heading)}, [${body}]]`;
+  }).join(',\n');
+  return arr.length ? `[\n${secs},\n]` : '[]';
+}
+
+/**
  * Build a fresh lang-data.js from current localStorage state and trigger a download.
  */
 function exportDataJS() {
@@ -284,6 +310,8 @@ function exportDataJS() {
   const grammar = load('mv_grammar', GRAMMAR);
   const phonetics = load('mv_phonetics', PHONETICS);
   const philosophy = load('mv_philosophy', PHILOSOPHY);
+  const sections = load('mv_sections', SECTIONS);
+  const rootsSections = load('mv_roots_sections', ROOTS_SECTIONS);
 
   const ts = new Date().toISOString();
 
@@ -302,6 +330,10 @@ const GRAMMAR = ${_ser1D(grammar)};
 const PHONETICS = ${_ser1D(phonetics)};
 
 const PHILOSOPHY = ${_ser1D(philosophy)};
+
+const SECTIONS = ${_serSections(sections)};
+
+const ROOTS_SECTIONS = ${_serSections(rootsSections)};
 `;
 
   const blob = new Blob([content], { type: 'text/javascript' });
@@ -321,4 +353,21 @@ const SVG_QUESTION = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none
   <circle cx="12" cy="12" r="10"/>
   <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
   <circle cx="12" cy="17" r="0.6" fill="currentColor"/>
+</svg>`;
+
+/* list view — rows of lines */
+const SVG_LIST = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <line x1="8" y1="6" x2="20" y2="6"/>
+  <line x1="8" y1="12" x2="20" y2="12"/>
+  <line x1="8" y1="18" x2="20" y2="18"/>
+  <circle cx="4" cy="6" r="1"/>
+  <circle cx="4" cy="12" r="1"/>
+  <circle cx="4" cy="18" r="1"/>
+</svg>`;
+
+/* section view — a framed table with a frozen header row */
+const SVG_SECTION = `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"
+  xmlns="http://www.w3.org/2000/svg">
+  <path d="M6.25 3C4.45507 3 3 4.45507 3 6.25V17.75C3 19.5449 4.45507 21 6.25 21H17.75C19.5449 21 21 19.5449 21 17.75V6.25C21 4.45507 19.5449 3 17.75 3H6.25ZM4.5 6.25C4.5 5.2835 5.2835 4.5 6.25 4.5H17.75C18.7165 4.5 19.5 5.2835 19.5 6.25V8.5H4.5V6.25ZM10 10H14V14H10V10ZM8.5 10V14H4.5V10H8.5ZM8.5 15.5V19.5H6.25C5.2835 19.5 4.5 18.7165 4.5 17.75V15.5H8.5ZM10 19.5V15.5H14V19.5H10ZM15.5 14V10H19.5V14H15.5ZM15.5 15.5H19.5V17.75C19.5 18.7165 18.7165 19.5 17.75 19.5H15.5V15.5Z"/>
 </svg>`;
