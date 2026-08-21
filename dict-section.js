@@ -77,6 +77,24 @@ function createDictSection(cfg) {
     return ids;
   }
 
+  /**
+   * Re-point every reference to (oldWord[, oldId]) at (newWord[, newId]).
+   * Called by the host page when an edit renames a word or changes its id,
+   * so stored references don't go stale.
+   */
+  function updateRef(oldWord, oldId, newWord, newId) {
+    let changed = false;
+    sections.forEach(sec => sec[1].forEach((it, i) => {
+      if (!Array.isArray(it)) return;
+      const sameId = oldId == null ? it.length === 1 : (it.length > 1 && it[1] === oldId);
+      if (it[0] === oldWord && sameId) {
+        sec[1][i] = newId != null ? [newWord, newId] : [newWord];
+        changed = true;
+      }
+    }));
+    if (changed) { save(sectionsKey, sections); render(container); }
+  }
+
   /** Upgrade references saved in the earlier full-tuple format to [word] / [word, id]. */
   function _migrateRefs() {
     let changed = false;
@@ -117,7 +135,7 @@ function createDictSection(cfg) {
     const editForm = loggedIn() ? `
       <div class="edit-collapse para-edit-collapse" data-item-form="${s}.${i}">
         <div class="edit-collapse-inner"><div class="inline-edit">
-          <textarea class="form-textarea" data-item-ta="${s}.${i}" rows="3">${esc(text)}</textarea>
+          <textarea class="form-textarea" data-item-ta="${s}.${i}" rows="6">${esc(text)}</textarea>
           <div class="form-actions">
             <button class="btn btn-primary btn-sm" data-item-save="${s}.${i}">save</button>
             <button class="btn btn-sm"             data-item-cancel="${s}.${i}">cancel</button>
@@ -173,7 +191,7 @@ function createDictSection(cfg) {
         </div>
 
         <div class="adder-pane" data-adder-pane="para"${mode === 'para' ? '' : ' hidden'}>
-          <textarea class="form-textarea" id="adder-para-ta" rows="3" placeholder="Paragraph text…"></textarea>
+          <textarea class="form-textarea" id="adder-para-ta" rows="6" placeholder="Paragraph text…"></textarea>
         </div>
 
         <div class="adder-pane" data-adder-pane="word"${mode === 'word' ? '' : ' hidden'}>
@@ -283,10 +301,13 @@ function createDictSection(cfg) {
   /** Insert a value at the adder's current position; advance so the next add lands after it. */
   function _insertAtAdder(value) {
     const before = clone(sections);
+    const scrollTop = container.querySelector('#adder-assign-results')?.scrollTop;
     sections[adder.sec][1].splice(adder.pos, 0, value);
     commit(before);
     adder.pos += 1;
     render(container);
+    const box = container.querySelector('#adder-assign-results');
+    if (box && scrollTop) box.scrollTop = scrollTop;
   }
 
   /* ── event binding ── */
@@ -518,7 +539,7 @@ function createDictSection(cfg) {
   function _refreshAssign() {
     const box = container.querySelector('#adder-assign-results');
     if (!box) return;
-    const results = filterEntries(getDict(), adder.q || '', hasPos).slice(0, 12);
+    const results = filterEntries(getDict(), adder.q || '', hasPos);
     if (!results.length) { box.innerHTML = `<div class="sec-empty">No matches.</div>`; return; }
     box.innerHTML = results.map(e => {
       const pos = (hasPos && e[1]) ? `<span class="dict-pos">${esc(e[1])} </span>` : '';
@@ -614,5 +635,5 @@ function createDictSection(cfg) {
     return true;
   }
 
-  return { render, handleUndo, collectRefIds };
+  return { render, handleUndo, collectRefIds, updateRef };
 }

@@ -107,7 +107,9 @@ function createDictPage(cfg) {
           </div>
           <p class="kw-intro">
             Use these keywords to refine your search. Without any keyword, the default is
-            to match the word string itself, prioritizing entries that begin with your query.
+            to match the word string itself, prioritizing entries that begin with your query.</br>
+            The search bar accepts regex, but <code>*</code> means "any letter" (use
+            <code>\\*</code> for a literal asterisk).
           </p>
           <table class="kw-table">
             <thead><tr><th>keyword</th><th>description</th></tr></thead>
@@ -279,6 +281,7 @@ function createDictPage(cfg) {
         const def  = (document.querySelector(`[data-edit-def="${idx}"]`)?.value  || '').trim();
         if (!word || !def) return;
         const before = JSON.parse(JSON.stringify(data));
+        const oldWord = data[idx][0];
         const oldId = entryId(data[idx]);
         const newEntry = hasPos ? [word, pos, def] : [word, def];
         if (oldId != null) newEntry.push(oldId);
@@ -288,6 +291,9 @@ function createDictPage(cfg) {
         data[idx] = newEntry;
         save(dataKey, data);
         pushUndo(dataKey, before, JSON.parse(JSON.stringify(data)));
+        /* keep section-view references correct if the word text or id changed */
+        const newId = entryId(newEntry);
+        if (oldWord !== word || oldId !== newId) sectionView?.updateRef(oldWord, oldId, word, newId);
         _refreshList();
       })
     );
@@ -339,6 +345,8 @@ function createDictPage(cfg) {
     const c = document.getElementById('dict-content');
     if (!c) return;
     if (viewMode === 'section' && sectionView) {
+      // pick up edits made elsewhere (e.g. another tab) since page load
+      data = load(dataKey, dataRaw);
       sectionView.render(c);
       return;
     }

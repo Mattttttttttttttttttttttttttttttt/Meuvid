@@ -89,6 +89,15 @@ function wrapSelectedText(ta, open, close) {
 
 /* ── Confirmation modal ── */
 
+/*
+ * Track whether Shift is currently held via keyboard events.
+ * window blur resets it so we don't get stuck "held".
+ */
+let _shiftHeld = false;
+document.addEventListener('keydown', e => { if (e.key === 'Shift') _shiftHeld = true;  }, true);
+document.addEventListener('keyup',   e => { if (e.key === 'Shift') _shiftHeld = false; }, true);
+window.addEventListener('blur', () => { _shiftHeld = false; });
+
 /**
  * Show a styled yes/no dialog. Returns a Promise that resolves to true (confirmed)
  * or false (cancelled). Cancel button is focused by default.
@@ -98,15 +107,6 @@ function wrapSelectedText(ta, open, close) {
  * @param {string} [confirmLabel='confirm']
  * @param {Event}  [event] originating event; if shiftKey is held, skip the dialog
  */
-/* Track whether Shift is currently held via keyboard events. Some input setups
- * (e.g. certain Linux configs) don't populate the modifier flags on mouse/pointer
- * events, so reading event.shiftKey on a click is unreliable — keyboard events do
- * carry the state. window blur resets it so we don't get stuck "held". */
-let _shiftHeld = false;
-document.addEventListener('keydown', e => { if (e.key === 'Shift') _shiftHeld = true;  }, true);
-document.addEventListener('keyup',   e => { if (e.key === 'Shift') _shiftHeld = false; }, true);
-window.addEventListener('blur', () => { _shiftHeld = false; });
-
 function showConfirm(message, confirmLabel = 'confirm', event = null) {
   if ((event && event.shiftKey) || _shiftHeld) return Promise.resolve(true);
   return new Promise(resolve => {
@@ -228,10 +228,34 @@ function initGlobalShortcuts() {
 }
 
 /**
- * Filter a data array by a search query.
- * Supports keyword functions: pos(x), all(x), def(x). The closing paren is
- * optional, so "pos(a" behaves the same as "pos(a)". If the text before "("
- * isn't a recognized function, the whole query is treated as a literal search.
+ * Build a case-insensitive RegExp from a search fragment. Full regex syntax is
+ * supported, with one twist: a bare "*" means "any single letter" (\w) instead of
+ * the usual "0 or more of the previous token"; "\*" still matches a literal "*".
+ * Falls back to a literal (fully-escaped) match if the pattern is invalid, so a
+ * search string mid-edit (e.g. unbalanced parens) never throws.
+ */
+function _toRegexSource(s) {
+  return s
+    .replace(/\\\*/g, '\u0000')  // stash literal "\*"
+    .replace(/\*/g, '\\w')       // bare "*" → any single letter
+    .replace(/\u0000/g, '\\*');  // restore the literal
+}
+
+function _buildRegex(s) {
+  try { return new RegExp(_toRegexSource(s), 'i'); }
+  catch { return new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
+}
+
+/** Strip apostrophes so for the field being searched */
+function _stripApos(s) { return String(s).replace(/'/g, ''); }
+
+/**
+ * Filter a data array by a search query. The query (and each keyword function's
+ * argument) is interpreted as regex — see _buildRegex for the "*" exception.
+ * Supports keyword functions: pos(x), all(x), def(x).
+ * The closing paren is optional
+ * If the text before "("  * isn't a recognized function, the whole query is
+ * treated as a pattern itself.
  * Default: match the word string, starts-with first.
  *
  * @param {Array[]} data    - 2D array of entries
@@ -246,20 +270,21 @@ function filterEntries(data, query, hasPos) {
   const fnM = q.match(/^([a-z]+)\((.*?)\)?$/i);
   if (fnM) {
     const fn = fnM[1].toLowerCase();
-    const t  = fnM[2].toLowerCase();
-    if (fn === 'pos' && hasPos) return data.filter(e => e[1].toLowerCase().includes(t));
-    if (fn === 'all')          return data.filter(e => e.some(f => String(f).toLowerCase().includes(t)));
+    const re = _buildRegex(fnM[2]);
+    if (fn === 'pos' && hasPos) return data.filter(e => re.test(_stripApos(e[1])));
+    if (fn === 'all')          return data.filter(e => e.some(f => re.test(_stripApos(String(f)))));
     if (fn === 'def') {
       const idx = hasPos ? 2 : 1;
-      return data.filter(e => e[idx].toLowerCase().includes(t));
+      return data.filter(e => re.test(_stripApos(e[idx])));
     }
     // unrecognized function name → fall through to literal search
   }
 
-  // Default: match word string; starts-with has priority
-  const t = q.toLowerCase();
-  const starts = data.filter(e => e[0].toLowerCase().startsWith(t));
-  const rest = data.filter(e => !e[0].toLowerCase().startsWith(t) && e[0].toLowerCase().includes(t));
+  // Default: match word string (apostrophes ignored); starts-with has priority
+  const re = _buildRegex(q);
+  const startsAt0 = s => { const m = re.exec(_stripApos(s)); return !!m && m.index === 0; };
+  const starts = data.filter(e => startsAt0(e[0]));
+  const rest = data.filter(e => !startsAt0(e[0]) && re.test(_stripApos(e[0])));
   return [...starts, ...rest];
 }
 
