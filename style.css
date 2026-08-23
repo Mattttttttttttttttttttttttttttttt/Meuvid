@@ -163,7 +163,7 @@ body {
    PAGE LAYOUT
    ================================================================ */
 .page {
-  max-width: 860px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 64px 36px 100px;
   animation: fadeUp 0.2s ease;
@@ -384,7 +384,7 @@ body {
    ================================================================ */
 /* center the main text column so titles, subtitles, and actions align */
 .text-body {
-  max-width: 720px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
