@@ -51,15 +51,9 @@ function createTextPage(cfg) {
       <div class="edit-collapse para-edit-collapse" data-para-edit-form="${idx}">
         <div class="edit-collapse-inner">
           <div class="inline-edit">
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-              <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-                           color:var(--text-3)">type</span>
-              <select class="form-select"
-                style="width:auto;padding:4px 10px;font-size:14px"
-                data-para-type-sel="${idx}">
-                <option value="h1"${isHead ? ' selected' : ''}>heading</option>
-                <option value="p" ${!isHead ? ' selected' : ''}>paragraph</option>
-              </select>
+            <div class="view-toggle adder-toggle" style="margin-bottom:10px">
+              <button type="button" class="view-toggle-btn${!isHead ? ' active' : ''}" data-para-type="${idx}" data-val="p">paragraph</button>
+              <button type="button" class="view-toggle-btn${isHead ? ' active' : ''}" data-para-type="${idx}" data-val="h1">header</button>
             </div>
             <textarea class="form-textarea" data-para-ta="${idx}"
               rows="8">${esc(displayVal)}</textarea>
@@ -102,15 +96,12 @@ function createTextPage(cfg) {
 
   function _adderHTML() {
     const type = adder.type || 'p';
+    const tab = (t, label) =>
+      `<button class="view-toggle-btn${type === t ? ' active' : ''}" data-adder-type="${t}">${label}</button>`;
     return `
       <div class="sec-adder">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-          <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-                       color:var(--text-3)">type</span>
-          <select class="form-select" style="width:auto;padding:4px 10px;font-size:14px" id="adder-type">
-            <option value="p"${type === 'p' ? ' selected' : ''}>paragraph</option>
-            <option value="h1"${type === 'h1' ? ' selected' : ''}>heading</option>
-          </select>
+        <div class="view-toggle adder-toggle">
+          ${tab('p', 'paragraph')}${tab('h1', 'header')}
         </div>
         <textarea class="form-textarea" id="adder-ta" rows="8"
           placeholder="${type === 'h1' ? 'Heading text…' : 'Paragraph text…'}"></textarea>
@@ -165,7 +156,7 @@ function createTextPage(cfg) {
           <h1 class="page-title">Meuvid</h1>
           ${editControls}
         </div>
-        <div class="text-body" id="text-body">${_parasHTML()}</div>
+        <div class="text-body${AUTH.isLoggedIn() ? ' editing' : ''}" id="text-body">${_parasHTML()}</div>
       </main>`;
   }
 
@@ -223,6 +214,14 @@ function createTextPage(cfg) {
       })
     );
 
+    /* type toggle — DOM-only, matches the adder's tab pattern */
+    document.querySelectorAll('[data-para-type]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        document.querySelectorAll(`[data-para-type="${btn.dataset.paraType}"]`).forEach(b =>
+          b.classList.toggle('active', b === btn));
+      })
+    );
+
     /* cancel — revert any in-session moves by restoring the snapshot */
     document.querySelectorAll('[data-para-cancel]').forEach(btn =>
       btn.addEventListener('click', () => {
@@ -243,7 +242,7 @@ function createTextPage(cfg) {
     document.querySelectorAll('[data-para-save]').forEach(btn =>
       btn.addEventListener('click', () => {
         const i = parseInt(btn.dataset.paraSave);
-        const type = document.querySelector(`[data-para-type-sel="${i}"]`)?.value || 'p';
+        const type = document.querySelector(`[data-para-type="${i}"].active`)?.dataset.val || 'p';
         const text = (document.querySelector(`[data-para-ta="${i}"]`)?.value || '').trim();
         if (!text) return;
         const before = _editSnapshot ?? [...data];
@@ -343,7 +342,7 @@ function createTextPage(cfg) {
 
   function _submitAdder() {
     if (!adder) return;
-    const type = document.getElementById('adder-type')?.value || 'p';
+    const type = adder.type || 'p';
     const text = (document.getElementById('adder-ta')?.value || '').trim();
     if (!text) return;
     const before = [...data];
@@ -360,12 +359,15 @@ function createTextPage(cfg) {
     );
     if (!adder) return;
 
-    const typeSel = document.getElementById('adder-type');
-    if (typeSel) typeSel.addEventListener('change', e => {
-      adder.type = e.target.value;
-      const ta = document.getElementById('adder-ta');
-      if (ta) ta.placeholder = e.target.value === 'h1' ? 'Heading text…' : 'Paragraph text…';
-    });
+    document.querySelectorAll('[data-adder-type]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        adder.type = btn.dataset.adderType;
+        document.querySelectorAll('[data-adder-type]').forEach(b =>
+          b.classList.toggle('active', b.dataset.adderType === adder.type));
+        const ta = document.getElementById('adder-ta');
+        if (ta) ta.placeholder = adder.type === 'h1' ? 'Heading text…' : 'Paragraph text…';
+      })
+    );
 
     const ta = document.getElementById('adder-ta');
     if (ta) {

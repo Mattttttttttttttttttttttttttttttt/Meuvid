@@ -74,6 +74,7 @@ body {
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--border);
+  view-transition-name: site-topbar;
 }
 
 .topbar-brand {
@@ -182,6 +183,7 @@ body {
   margin: 0 auto 12px;
   max-width: 720px;
   width: fit-content;
+  view-transition-name: site-title;
 }
 
 .page-subtitle {
@@ -409,6 +411,14 @@ body {
   position: relative;
 }
 
+/* The insertion gap buttons (editing only) add var(--sec-gap) between every
+   item; subtract that from each item's own margin so the total on-screen gap
+   matches the read-only spacing. The leading paragraph needs an extra offset
+   since (unlike a heading) it has no top margin to absorb the leading gap. */
+.text-body.editing .para-content > h1 { margin: calc(40px - var(--sec-gap)) 0 calc(30px - var(--sec-gap)); }
+.text-body.editing .para-content > p  { margin-bottom: calc(18px - var(--sec-gap)); }
+.text-body.editing .para-block:first-child .para-content > p { margin-top: calc(-1 * var(--sec-gap)); }
+
 /* para-content is the new positioned host for the hover edit button */
 .para-content {
   position: relative;
@@ -470,8 +480,7 @@ body {
 }
 
 .form-input,
-.form-textarea,
-.form-select {
+.form-textarea {
   background: var(--surface-2);
   border: 1px solid var(--border-2);
   border-radius: var(--r-sm);
@@ -485,8 +494,7 @@ body {
 }
 
 .form-input:focus,
-.form-textarea:focus,
-.form-select:focus {
+.form-textarea:focus {
   border-color: var(--text-3);
 }
 
@@ -494,11 +502,6 @@ body {
   resize: vertical;
   min-height: 90px;
   line-height: 1.6;
-}
-
-.form-select {
-  cursor: pointer;
-  color-scheme: dark;
 }
 
 .form-actions {
@@ -823,14 +826,21 @@ code {
   to { opacity: 0; }
 }
 
-/* Outgoing page fades out; incoming page is shown at full opacity so
-   .page's existing fadeUp animation plays without compounding. */
+/* Incoming page fades up from partial (not zero) opacity, matching the
+   outgoing screenshot's fade-out duration, so there's no moment where both
+   are near-transparent at once — that double-dip is what reads as a flash
+   to background instead of a crossfade. */
+@keyframes vt-fade-in {
+  from { opacity: 0.4; transform: translateY(6px); }
+  to   { opacity: 1;   transform: translateY(0); }
+}
+
 ::view-transition-old(root) {
   animation: 0.16s ease-in both vt-fade-out;
 }
 
 ::view-transition-new(root) {
-  animation: none;
+  animation: 0.16s ease-out both vt-fade-in;
 }
 
 /* ================================================================
@@ -1023,18 +1033,30 @@ code {
 
   /* Dictionary / roots rows: let the word + actions share the top line and
      drop the definition body onto its own full-width line instead of being
-     crushed into a sliver of space. */
+     crushed into a sliver of space. "order" does the reordering, since the
+     actions markup comes after the body in the DOM. */
   .dict-entry {
     flex-wrap: wrap;
-    gap: 4px 16px;
+    gap: 6px 16px;
+    padding: 12px 0;
+  }
+
+  .sec-item .dict-entry {
+    gap: 6px 16px;
   }
 
   .dict-word {
     min-width: 0;
+    order: 1;
+  }
+
+  .entry-actions {
+    order: 2;
   }
 
   .dict-body {
     flex: 1 1 100%;
+    order: 3;
   }
 
   /* Hover-only edit button would otherwise overflow the left edge */
@@ -1128,7 +1150,8 @@ code {
 
 /* entries carry no internal spacing or rules; the gaps below set the rhythm */
 .sec-item { margin: 0; }
-.sec-item .para-content > p { margin: 0; }
+.sec-item .para-content > p,
+.sec-item .para-content > h1 { margin: 0; }
 .sec-item .dict-entry { padding: 0; border: none; gap: 24px; }
 
 /* read-only mode has no insertion gaps, so space entries directly */

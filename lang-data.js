@@ -1,6 +1,6 @@
 /* ================================================================
    lang-data.js — all language data arrays
-   Last updated: 2026-08-20T22:32:57.627Z
+   Last updated: 2026-08-23T02:33:53.798Z
    ================================================================ */
 
 const DICT = [
@@ -22,11 +22,15 @@ const DICT = [
   ["blor", "n.", "permission: pos&0/0 expectation"],
   ["bloret", "mod v.", "is allowed to"],
   ["bomshe", "intj.", "\"you are being too polite\""],
+  ["buc", "prep.", "to the front of: 3D, relative to the ground"],
   ["cee", "adj.", "shallow: front-back short"],
   ["ceeven", "adj./n.", "lime: ccff00"],
   ["cor", "adj.", "deep: front-back long"],
+  ["dasio", "n.", "math: the field of study"],
   ["deum", "adj./n.", "green: 00ff00"],
   ["eeb", "v.", "go to bed"],
+  ["faevois", "n.", "reason: the human-assigned cause of any particular human action"],
+  ["faevoiset", "v.", "introspect to find faevoise"],
   ["fas", "adj./n.", "yellow: ffff00"],
   ["flai", "n.", "water"],
   ["fluf", "v.", "have, possess"],
@@ -38,6 +42,7 @@ const DICT = [
   ["haishem", "n.", "haishemi thoughts"],
   ["haishemet", "v.", "be haishemi"],
   ["haishemi", "adj.", "considerate: [person, action] incurs pos to others only achievable by stepping in their shoes"],
+  ["hat", "con.", "precedes the focused word in the sentence"],
   ["heush", "adj./n.", "magenta: ff00ff"],
   ["hi", "adj.", "short: 1D"],
   ["hol", "prep.", "above [an object]"],
@@ -85,7 +90,10 @@ const DICT = [
   ["rinet", "mod v.", "can: has the ability to [physically, mentally]"],
   ["rins", "n.", "ability [physically, mentally]"],
   ["rinsi", "adj.", "able: [person] has many abilities"],
+  ["roud", "n.", "seat: where one rodet"],
+  ["roudet", "v.", "[human] sit: a physical position where"],
   ["run", "prep.", "below [an object]"],
+  ["shau", "det.", "the: for proper nouns"],
   ["she", "v.", "=sher [mo she ⇒ mosh]"],
   ["sher", "v.", "be: has the property (characteristic) that"],
   ["sher", "n.", "time", 1],
@@ -95,8 +103,8 @@ const DICT = [
   ["sheudasui", "n.", "reality contortion: the dizziness in perception, common after books or movies"],
   ["shi", "adj.", "fast"],
   ["sol-", "prep.", "inclusive or: 1 or 2 of [add POE suffix]"],
-  ["ti", "det.", "the: aforementioned, the one and only [specific]"],
-  ["tsi", "prep.", "touching [2D]"],
+  ["ti", "det.", "the: aforementioned, [there is only one thing based on context]"],
+  ["tsi", "prep.", "touching: 2D"],
   ["tu'laoshi", "adj.", "wise: [person] has lots of tulaosh"],
   ["tulaosh", "n.", "wisdom: life lesson"],
   ["tulen", "n.", "knowledge: information or skill from experience or education"],
@@ -105,7 +113,7 @@ const DICT = [
   ["tulrin", "adj.", "knowable: [tulen] possible to be obtained"],
   ["ul-", "prep.", "and: parallel consideration [add POE suffix]"],
   ["vao", "adj.", "slow"],
-  ["vid", "n.", "thought: a user-defined region of the train of thought"],
+  ["vid", "n.", "thought: a user-defined region of the kotot"],
   ["videt", "v.", "think: [human-like, complexity]"],
   ["vidi", "adj.", "anxious: [person] generally too many worried thoughts"],
   ["viis", "n.", "fire"],
@@ -113,11 +121,15 @@ const DICT = [
   ["vuan", "n.", "future: what's after \"now\" on the timeline"],
   ["vuet", "mod v.", "[happening in the future]"],
   ["wou", "adj.", "long: temporally"],
+  ["wush", "prep.", "far: spatially, temporally, idea-ly"],
   ["yao", "conj.", "after: temporal"],
+  ["zaevois", "q.", "why: what faevois"],
   ["zan", "q.", "what: replaces a noun"],
   ["zau", "adj.", "long: 1D"],
   ["zee", "pron.", "filler pronoun [no possessive]"],
   ["zer", "q.", "when: replaces a time adverb"],
+  ["zeut", "prep.", "to the back of: 3D, relative to the ground"],
+  ["zoot", "q.", "where: replaces a oot adv."],
 ];
 
 const ROOTS = [
@@ -157,8 +169,10 @@ const GRAMMAR = [
   "- asked with a raising tone\n- precede with a question teaser\n- no word order change, just substitute in the question word",
   "# imperatives",
   "- the verb suffix -et becomes -shiwa\n- use best judgement when the verb doesn't end in -et\n- sher becomes shiwa",
-  "# comparatives and superlatives",
-  "All adjectives are by definition a comparative. For superlative, add -oe.",
+  "# inflections",
+  "- plural: add -il\n- comparative: all adjectives are by definition a comparative\n- superlative: add -oe",
+  "# derivation",
+  "- substitute with z- to create the question word\n- substitute with w- to create the relative pronoun",
 ];
 
 const PHONETICS = [
@@ -169,7 +183,7 @@ const PHONETICS = [
   "All words are stressed on the first syllable unless denoted otherwise in the dictionary (generally, this occurs when there is a prefix, or when the word is so long that each syllable cannot receive a distinct pitch).",
   "# consonants",
   "pronounced like english:\nb, f, g, h, l, m, r, s, sh, v, x, z",
-  "c = /ts/\nd = /ɾ/ (alveolar tap)\nj = /dʒ/\nk is less aspirated than English\nn = nasalize any single, short vowels before it\np = /ʔ/ (glottal stop)\nq = /tʃ/\nt = /d/\nw is only used at the start of a distinct syllable\ny = /j/",
+  "c = /ts/\nd = /ɾ/ (alveolar tap)\nj = /ʒ/\nk is less aspirated than English\nn = nasalize any single, short vowels before it\np = /ʔ/ (glottal stop)\nq = /tʃ/\nt = /d/\nw is only used at the start of a distinct syllable\ny = /j/",
   "# vowels",
   "a = /a/\nae = /æ/\nai = /ai/\nau = /ao/\ne = /ə/\nee = /e/\nei = /ei/\neu = /y/\ni = /i/ (not ɪ)\no = /o/\noe = /ø/\noi = /oi/\noo = /o:/\nou = /ou/\nu = /u/",
 ];
@@ -177,12 +191,18 @@ const PHONETICS = [
 const PHILOSOPHY = [
   "# purpose",
   "Meuvid is, after all, a personal project. I will throw in whatever feature I want, and some of that may solve your communication problems. Much needed words will be coined, and I hope that Meuvid can mayhaps reduce miscommunication and promote good values. And have some fun in the process.",
-  "If I had to pick a grander-sounding purpose, I will say that Meuvid is a language designed for humans and all their quirks. One of the big area of attack is politeness and the unsaid, which I will try to remove through formulations of expectations.",
+  "If I had to pick a grander-sounding purpose, I will say that Meuvid is a language designed for humans and all their quirks. One of the big area of attack is politeness and the unsaid, which I will try to remove through formulations of expectations. I also want to define vague concepts precisely so we avoid circular philosophical questions that ultimately depend on language.",
   "# communication > grammar",
   "Yes. You can violate any and all of grammar, as long as you are perfectly sure the same meaning will be conveyed across. Note that grammar in Meuvid is designed to enhance clarity and remove ambiguity. The rules are not arbitrary, so do not violate them for no good reason.",
 ];
 
 const SECTIONS = [
+  ["determiners", [
+    ["le"],
+    ["ti"],
+    ["shau"],
+    ["gal"],
+  ]],
   ["pronouns", [
     "laen defaults to gender-neutral; only use laeni, etc. when needing to specify gender.",
     "For object form, replace the first vowel with \"i\".",
@@ -218,7 +238,22 @@ const SECTIONS = [
     ["run"],
     ["lud"],
     ["mav"],
+    ["buc"],
+    ["zeut"],
     ["lei"],
+    ["wush"],
+  ]],
+  ["sizes", [
+    ["hi"],
+    ["zau"],
+    ["bi"],
+    ["hai"],
+    ["cee"],
+    ["cor"],
+    ["jeu"],
+    ["mail"],
+    ["nel"],
+    ["loo"],
   ]],
 ];
 
@@ -229,6 +264,8 @@ const ROOTS_SECTIONS = [
     ["cor"],
     ["hai"],
     ["hi"],
+    ["zau"],
     ["jeu"],
+    ["mail"],
   ]],
 ];

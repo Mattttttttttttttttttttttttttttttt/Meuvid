@@ -129,6 +129,11 @@ function createDictSection(cfg) {
   }
 
   function _paraItemHTML(text, s, i) {
+    // items using the "# " prefix (same convention as textpage.js) render as headers
+    const isHead = text.startsWith('# ');
+    const displayText = isHead ? text.slice(2) : text;
+    const tag = isHead ? 'h1' : 'p';
+
     const editBtn = loggedIn()
       ? `<button class="btn btn-sm btn-ghost para-edit-btn"
            data-item-edit="${s}.${i}" style="margin-bottom:4px">edit</button>` : '';
@@ -152,7 +157,7 @@ function createDictSection(cfg) {
     return `
       <div class="sec-item para-block" data-sec="${s}" data-item="${i}">
         <div class="para-content">
-          <p>${text.replace(/\n/g, '<br>')}</p>
+          <${tag}>${displayText.replace(/\n/g, '<br>')}</${tag}>
           ${editBtn}
         </div>
         ${editForm}
@@ -187,11 +192,15 @@ function createDictSection(cfg) {
     return `
       <div class="sec-adder">
         <div class="view-toggle adder-toggle">
-          ${tab('para', 'paragraph')}${tab('word', 'word')}${tab('assign', 'assign')}
+          ${tab('para', 'paragraph')}${tab('head', 'header')}${tab('word', 'word')}${tab('assign', 'assign')}
         </div>
 
         <div class="adder-pane" data-adder-pane="para"${mode === 'para' ? '' : ' hidden'}>
           <textarea class="form-textarea" id="adder-para-ta" rows="6" placeholder="Paragraph text…"></textarea>
+        </div>
+
+        <div class="adder-pane" data-adder-pane="head"${mode === 'head' ? '' : ' hidden'}>
+          <input class="form-input" id="adder-head-w" placeholder="Heading text…" />
         </div>
 
         <div class="adder-pane" data-adder-pane="word"${mode === 'word' ? '' : ' hidden'}>
@@ -480,6 +489,7 @@ function createDictSection(cfg) {
         const cancel = container.querySelector('#adder-cancel');
         if (cancel) cancel.textContent = adder.mode === 'assign' ? 'done' : 'cancel';
         const focus = adder.mode === 'para' ? '#adder-para-ta'
+                    : adder.mode === 'head' ? '#adder-head-w'
                     : adder.mode === 'word' ? '#adder-word-w' : '#adder-assign-search';
         container.querySelector(focus)?.focus();
         if (adder.mode === 'assign') { adder.sel = 0; _refreshAssign(); }
@@ -493,7 +503,7 @@ function createDictSection(cfg) {
     if (paraTa) paraTa.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); _submitAdder(); }
     });
-    container.querySelectorAll('#adder-word-w, #adder-word-p, #adder-word-d').forEach(inp =>
+    container.querySelectorAll('#adder-head-w, #adder-word-w, #adder-word-p, #adder-word-d').forEach(inp =>
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') _submitAdder(); }));
 
     const search = container.querySelector('#adder-assign-search');
@@ -514,6 +524,7 @@ function createDictSection(cfg) {
 
     /* focus + populate the open pane */
     const focusSel = adder.mode === 'para' ? '#adder-para-ta'
+                   : adder.mode === 'head' ? '#adder-head-w'
                    : adder.mode === 'word' ? '#adder-word-w' : '#adder-assign-search';
     const fe = container.querySelector(focusSel);
     if (fe) setTimeout(() => { fe.focus(); if (fe.value) fe.setSelectionRange(fe.value.length, fe.value.length); }, 20);
@@ -526,6 +537,10 @@ function createDictSection(cfg) {
       const text = (container.querySelector('#adder-para-ta')?.value || '').trim();
       if (!text) return;
       _insertAtAdder(text);
+    } else if (adder.mode === 'head') {
+      const text = (container.querySelector('#adder-head-w')?.value || '').trim();
+      if (!text) return;
+      _insertAtAdder('# ' + text); // same "# " heading convention as textpage.js
     } else if (adder.mode === 'word') {
       const w = (container.querySelector('#adder-word-w')?.value || '').trim();
       const p = (container.querySelector('#adder-word-p')?.value || '').trim();
