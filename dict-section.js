@@ -92,7 +92,10 @@ function createDictSection(cfg) {
         changed = true;
       }
     }));
-    if (changed) { save(sectionsKey, sections); render(container); }
+    if (changed) {
+      save(sectionsKey, sections);
+      if (container && container.querySelector('.sec-view')) render(container);
+    }
   }
 
   /** Upgrade references saved in the earlier full-tuple format to [word] / [word, id]. */
