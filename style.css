@@ -403,6 +403,7 @@ body {
   color: var(--text-2);
   line-height: 1.82;
   margin-bottom: 18px;
+  white-space: pre-wrap;
 }
 
 .para-block {
