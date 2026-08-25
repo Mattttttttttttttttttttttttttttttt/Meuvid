@@ -22,10 +22,13 @@
  * @param {Function} cfg.getDict       () => live source array
  * @param {Function} cfg.addDictEntry  (tuple) => reference; adds to the source
  *                                      (persist + undo) and returns the reference
+ * @param {Function} cfg.updateDictEntry (oldWord, oldId, word, pos, def) => reference | null;
+ *                                      edits a source entry by its current word/id
+ *                                      (persist + undo) and returns its new reference
  * @returns {{ render, handleUndo, collectRefIds }}
  */
 function createDictSection(cfg) {
-  const { sectionsKey, sectionsRaw, hasPos, getDict, addDictEntry } = cfg;
+  const { sectionsKey, sectionsRaw, hasPos, getDict, addDictEntry, updateDictEntry } = cfg;
   const baseLen = hasPos ? 3 : 2;       // source entry length without an id
   const idIdx   = baseLen;              // index the id occupies when present
   const defIdx  = hasPos ? 2 : 1;
@@ -114,8 +117,10 @@ function createDictSection(cfg) {
 
   function _wordItemHTML(ref, s, i) {
     const { entry, deleted, word } = resolveRef(ref);
+    const editable = loggedIn() && !deleted; // nothing to edit for a deleted target
     const actions = loggedIn() ? `
       <div class="entry-actions">
+        ${editable ? `<button class="btn btn-sm btn-ghost" data-item-edit="${s}.${i}">edit</button>` : ''}
         <button class="btn btn-sm btn-ghost" data-item-up="${s}.${i}"   title="move up">↑</button>
         <button class="btn btn-sm btn-ghost" data-item-down="${s}.${i}" title="move down">↓</button>
         <button class="btn btn-sm btn-danger" data-item-del="${s}.${i}" title="remove from section">×</button>
@@ -125,9 +130,29 @@ function createDictSection(cfg) {
          <span class="dict-body sec-deleted">deleted from ${hasPos ? 'dictionary' : 'roots'}</span>`
       : `<span class="dict-word">${esc(entry[0])}</span>
          <span class="dict-body">${(hasPos && entry[1]) ? `<span class="dict-pos">${esc(entry[1])} </span>` : ''}${esc(entry[defIdx] ?? '')}</span>`;
+
+    const posEditField = editable && hasPos ? `
+      <input class="form-input" style="width:80px;flex-shrink:0"
+        data-word-pos="${s}.${i}" value="${esc(entry[1])}" placeholder="pos." />` : '';
+    const editForm = editable ? `
+      <div class="edit-collapse" data-item-form="${s}.${i}">
+        <div class="edit-collapse-inner">
+          <div class="entry-edit-row">
+            <input class="form-input" style="width:130px;flex-shrink:0"
+              data-word-word="${s}.${i}" value="${esc(entry[0])}" />
+            ${posEditField}
+            <input class="form-input" style="flex:1;min-width:120px"
+              data-word-def="${s}.${i}" value="${esc(entry[defIdx] ?? '')}" />
+            <button class="btn btn-primary btn-sm" data-item-save="${s}.${i}">save</button>
+            <button class="btn btn-sm" data-item-cancel="${s}.${i}">cancel</button>
+          </div>
+        </div>
+      </div>` : '';
+
     return `
       <div class="sec-item sec-word" data-sec="${s}" data-item="${i}">
         <div class="dict-entry">${body}${actions}</div>
+        ${editForm}
       </div>`;
   }
 
@@ -335,11 +360,11 @@ function createDictSection(cfg) {
       btn.addEventListener('click', () => {
         container.querySelectorAll('.sec-item.editing').forEach(b => {
           b.classList.remove('editing');
-          b.querySelector('.para-edit-collapse')?.classList.remove('open');
+          b.querySelector('[data-item-form]')?.classList.remove('open');
         });
         const [s, i] = _si(btn.dataset.itemEdit);
         container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`)?.classList.add('editing');
-        _openCollapse(container.querySelector(`[data-item-form="${s}.${i}"]`), '.form-textarea');
+        _openCollapse(container.querySelector(`[data-item-form="${s}.${i}"]`), '.form-input, .form-textarea');
       })
     );
     container.querySelectorAll('[data-item-cancel]').forEach(btn =>
@@ -352,12 +377,25 @@ function createDictSection(cfg) {
     container.querySelectorAll('[data-item-save]').forEach(btn =>
       btn.addEventListener('click', () => {
         const [s, i] = _si(btn.dataset.itemSave);
-        const text = (container.querySelector(`[data-item-ta="${s}.${i}"]`)?.value || '').trim();
-        if (!text) return;
-        const before = clone(sections);
-        sections[s][1][i] = text;
-        commit(before);
-        render(container);
+        const item = sections[s][1][i];
+        if (Array.isArray(item)) {
+          // word item — edits the actual dictionary entry, not just the reference
+          const { entry } = resolveRef(item);
+          if (!entry) return;
+          const word = (container.querySelector(`[data-word-word="${s}.${i}"]`)?.value || '').trim();
+          const pos  = (container.querySelector(`[data-word-pos="${s}.${i}"]`)?.value  || '').trim();
+          const def  = (container.querySelector(`[data-word-def="${s}.${i}"]`)?.value  || '').trim();
+          if (!word || !def) return;
+          updateDictEntry(entry[0], entryId(entry), word, pos, def);
+          render(container);
+        } else {
+          const text = (container.querySelector(`[data-item-ta="${s}.${i}"]`)?.value || '').trim();
+          if (!text) return;
+          const before = clone(sections);
+          sections[s][1][i] = text;
+          commit(before);
+          render(container);
+        }
       })
     );
     container.querySelectorAll('[data-item-up]').forEach(btn =>
@@ -401,6 +439,15 @@ function createDictSection(cfg) {
         if (ctrl && e.key === 'b') { e.preventDefault(); wrapSelectedText(ta, '<b>', '</b>'); }
         if (ctrl && e.key === 'i') { e.preventDefault(); wrapSelectedText(ta, '<i>', '</i>'); }
         if (ctrl && e.key === 'u') { e.preventDefault(); wrapSelectedText(ta, '<u>', '</u>'); }
+      })
+    );
+
+    /* Enter in word-edit inputs → trigger save */
+    container.querySelectorAll('[data-word-word], [data-word-pos], [data-word-def]').forEach(input =>
+      input.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const idx = input.dataset.wordWord ?? input.dataset.wordPos ?? input.dataset.wordDef;
+        container.querySelector(`[data-item-save="${idx}"]`)?.click();
       })
     );
   }

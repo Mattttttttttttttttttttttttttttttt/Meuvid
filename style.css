@@ -735,11 +735,13 @@ body {
 }
 
 /* Dim the entry display row while its edit form is open */
-.dict-entry-wrapper > .dict-entry {
+.dict-entry-wrapper > .dict-entry,
+.sec-item.sec-word > .dict-entry {
   transition: opacity 0.2s ease;
 }
 
-.dict-entry-wrapper.editing > .dict-entry {
+.dict-entry-wrapper.editing > .dict-entry,
+.sec-item.sec-word.editing > .dict-entry {
   opacity: 0.28;
   pointer-events: none;
 }

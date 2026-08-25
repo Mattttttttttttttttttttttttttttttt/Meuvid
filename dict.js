@@ -42,6 +42,7 @@ function createDictPage(cfg) {
     hasPos,
     getDict: () => data,
     addDictEntry: _addDictEntry,
+    updateDictEntry: _updateEntryByRef,
   }) : null;
 
   _migrateDuplicateIds();
@@ -84,6 +85,28 @@ function createDictPage(cfg) {
     if (viewMode === 'list') _refreshList();
     const id = entryId(entry);
     return id != null ? [entry[0], id] : [entry[0]];
+  }
+
+  /* Edit a word on behalf of the section view, identified by its current word/id
+     (not index, since the section view has no index into the dictionary array).
+     Ripples the rename to every section reference. Returns the new reference,
+     or null if no matching entry was found. */
+  function _updateEntryByRef(oldWord, oldId, word, pos, def) {
+    const idx = data.findIndex(e => e[0] === oldWord && entryId(e) === oldId);
+    if (idx === -1) return null;
+    const before = JSON.parse(JSON.stringify(data));
+    const newEntry = hasPos ? [word, pos, def] : [word, def];
+    if (oldId != null) newEntry.push(oldId);
+    else if (data.some((e, i) => i !== idx && e[0] === word && entryId(e) == null)) {
+      newEntry.push(_nextId()); // a rename turned this into a duplicate
+    }
+    data[idx] = newEntry;
+    save(dataKey, data);
+    pushUndo(dataKey, before, JSON.parse(JSON.stringify(data)));
+    const newId = entryId(newEntry);
+    if (oldWord !== word || oldId !== newId) sectionView?.updateRef(oldWord, oldId, word, newId);
+    if (viewMode === 'list') _refreshList();
+    return newId != null ? [newEntry[0], newId] : [newEntry[0]];
   }
 
   /* ── undo callback for this page (handles both datasets) ── */
@@ -280,21 +303,7 @@ function createDictPage(cfg) {
         const pos  = (document.querySelector(`[data-edit-pos="${idx}"]`)?.value  || '').trim();
         const def  = (document.querySelector(`[data-edit-def="${idx}"]`)?.value  || '').trim();
         if (!word || !def) return;
-        const before = JSON.parse(JSON.stringify(data));
-        const oldWord = data[idx][0];
-        const oldId = entryId(data[idx]);
-        const newEntry = hasPos ? [word, pos, def] : [word, def];
-        if (oldId != null) newEntry.push(oldId);
-        else if (data.some((e, i) => i !== idx && e[0] === word && entryId(e) == null)) {
-          newEntry.push(_nextId()); // a rename turned this into a duplicate
-        }
-        data[idx] = newEntry;
-        save(dataKey, data);
-        pushUndo(dataKey, before, JSON.parse(JSON.stringify(data)));
-        /* keep section-view references correct if the word text or id changed */
-        const newId = entryId(newEntry);
-        if (oldWord !== word || oldId !== newId) sectionView?.updateRef(oldWord, oldId, word, newId);
-        _refreshList();
+        _updateEntryByRef(data[idx][0], entryId(data[idx]), word, pos, def);
       })
     );
 
