@@ -1,6 +1,6 @@
 /* ================================================================
    lang-data.js — all language data arrays
-   Last updated: 2026-08-25T05:22:00.459Z
+   Last updated: 2026-08-25T05:45:51.402Z
    ================================================================ */
 
 const DICT = [
@@ -280,7 +280,8 @@ const SECTIONS = [
     ["mopn"],
     ["blopn"],
     ["laenen"],
-    "# special verbs",
+  ]],
+  ["special verbs", [
     ["bleut"],
     ["bloret"],
     ["fluf"],
@@ -291,7 +292,8 @@ const SECTIONS = [
     ["rinet"],
     ["sher"],
     ["vuet"],
-    "# abstract prepositions",
+  ]],
+  ["abstract prepositions", [
     ["ben"],
     ["hiu"],
     ["lol-"],
@@ -368,7 +370,8 @@ const SECTIONS = [
     ["lais"],
     ["qa"],
     ["soug"],
-    "# ratings",
+  ]],
+  ["ratings", [
     "these are used for precise communications. when one is expressing oneself, e.g. when telling a story to a friend, one may choose to use the collection of words that mean \"very\".",
     ["top"],
     ["yeu"],

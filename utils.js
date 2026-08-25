@@ -326,6 +326,23 @@ function _serSections(arr) {
   return arr.length ? `[\n${secs},\n]` : '[]';
 }
 
+const MV_DATA_KEYS = [
+  'mv_dict', 'mv_dict_view',
+  'mv_roots', 'mv_roots_view',
+  'mv_grammar',
+  'mv_phonetics',
+  'mv_philosophy',
+  'mv_sections',
+  'mv_roots_sections',
+  'mv_undo', 'mv_redo',
+];
+
+/** Wipe all locally-saved meuvid data so every page falls back to the shipped lang-data.js. */
+function resetMeuvidData() {
+  MV_DATA_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+  location.reload();
+}
+
 /**
  * Build a fresh lang-data.js from current localStorage state and trigger a download.
  */

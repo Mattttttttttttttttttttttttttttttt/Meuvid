@@ -43,6 +43,31 @@ function createDictSection(cfg) {
   const loggedIn = () => AUTH.isLoggedIn();
   const entryId = e => (e.length > baseLen ? e[idIdx] : null);
 
+  /* Legacy: "# " items used to be a heading-styled paragraph within a section
+     (the old adder wrote these). Split each one out into a real section, so
+     data saved before the adder change still displays correctly. Runs once. */
+  function _migrateHeadingsToSections() {
+    let changed = false;
+    const result = [];
+    sections.forEach(([heading, items]) => {
+      let curHeading = heading;
+      let curItems = [];
+      items.forEach(item => {
+        if (typeof item === 'string' && item.startsWith('# ')) {
+          result.push([curHeading, curItems]);
+          curHeading = item.slice(2);
+          curItems = [];
+          changed = true;
+        } else {
+          curItems.push(item);
+        }
+      });
+      result.push([curHeading, curItems]);
+    });
+    if (changed) { sections = result; save(sectionsKey, sections); }
+  }
+  _migrateHeadingsToSections();
+
   _migrateRefs();
 
   function commit(before) {
@@ -220,7 +245,7 @@ function createDictSection(cfg) {
     return `
       <div class="sec-adder">
         <div class="view-toggle adder-toggle">
-          ${tab('para', 'paragraph')}${tab('head', 'header')}${tab('word', 'word')}${tab('assign', 'assign')}
+          ${tab('para', 'paragraph')}${tab('head', 'new section')}${tab('word', 'word')}${tab('assign', 'assign')}
         </div>
 
         <div class="adder-pane" data-adder-pane="para"${mode === 'para' ? '' : ' hidden'}>
@@ -228,7 +253,7 @@ function createDictSection(cfg) {
         </div>
 
         <div class="adder-pane" data-adder-pane="head"${mode === 'head' ? '' : ' hidden'}>
-          <input class="form-input" id="adder-head-w" placeholder="Heading text…" />
+          <input class="form-input" id="adder-head-w" placeholder="New section heading…" />
         </div>
 
         <div class="adder-pane" data-adder-pane="word"${mode === 'word' ? '' : ' hidden'}>
@@ -345,6 +370,20 @@ function createDictSection(cfg) {
     render(container);
     const box = container.querySelector('#adder-assign-results');
     if (box && scrollTop) box.scrollTop = scrollTop;
+  }
+
+  /** Break the current section at the adder's position: everything from that
+      point on moves into a new section (given heading) inserted right after.
+      The adder then continues inside the new section, at its start. */
+  function _splitIntoNewSection(text) {
+    const before = clone(sections);
+    const items = sections[adder.sec][1];
+    const after = items.splice(adder.pos); // truncates items in place, keeps the rest
+    sections.splice(adder.sec + 1, 0, [text, after]);
+    commit(before);
+    adder.sec += 1;
+    adder.pos = 0;
+    render(container);
   }
 
   /* ── event binding ── */
@@ -590,7 +629,7 @@ function createDictSection(cfg) {
     } else if (adder.mode === 'head') {
       const text = (container.querySelector('#adder-head-w')?.value || '').trim();
       if (!text) return;
-      _insertAtAdder('# ' + text); // same "# " heading convention as textpage.js
+      _splitIntoNewSection(text);
     } else if (adder.mode === 'word') {
       const w = (container.querySelector('#adder-word-w')?.value || '').trim();
       const p = (container.querySelector('#adder-word-p')?.value || '').trim();
