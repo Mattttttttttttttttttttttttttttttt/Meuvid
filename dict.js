@@ -397,12 +397,14 @@ function createDictPage(cfg) {
       const collapse = document.getElementById('add-form-collapse');
       collapse?.classList.add('open');
       const first = collapse?.querySelector('.form-input');
+      addBtn.style.display = 'none';
       if (first) setTimeout(() => first.focus(), 20);
     });
 
     const addCancel = document.getElementById('add-cancel-btn');
     if (addCancel) addCancel.addEventListener('click', () => {
       document.getElementById('add-form-collapse')?.classList.remove('open');
+      if (addBtn) addBtn.style.display = '';
     });
 
     const addSave = document.getElementById('add-save-btn');
