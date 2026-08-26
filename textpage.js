@@ -169,6 +169,8 @@ function createTextPage(cfg) {
     el.innerHTML = _parasHTML();
     _bindParaEditEvents();
     _bindAdderEvents();
+    tagParaHideKeys(el);
+    applyHiding(el);
   }
 
   /**
@@ -204,6 +206,7 @@ function createTextPage(cfg) {
         const block = document.querySelector(`[data-para-idx="${idx}"]`);
         const editForm = document.querySelector(`[data-para-edit-form="${idx}"]`);
         if (block && editForm) {
+          revealHidden(block);
           block.classList.add('editing');
           editForm.classList.add('open');
           _editSnapshot = [...data];
@@ -252,6 +255,7 @@ function createTextPage(cfg) {
         _editSnapshot = null;
         clearEscCleanup();
         _refreshBody();
+        revealHidden(document.querySelector(`[data-para-idx="${i}"]`));
       })
     );
 
@@ -260,11 +264,13 @@ function createTextPage(cfg) {
       btn.addEventListener('click', () => {
         const i = parseInt(btn.dataset.paraUp);
         if (i <= 0) return;
+        revealHidden(document.querySelector(`[data-para-idx="${i}"]`));
         const oldForm = document.querySelector(`[data-para-edit-form="${i}"]`);
         const oldFormTop = oldForm ? oldForm.getBoundingClientRect().top : null;
         [data[i], data[i - 1]] = [data[i - 1], data[i]];
         _refreshBody();
         _reopenParaEdit(i - 1, oldFormTop, '[data-para-up]');
+        revealHidden(document.querySelector(`[data-para-idx="${i - 1}"]`));
       })
     );
 
@@ -273,17 +279,20 @@ function createTextPage(cfg) {
       btn.addEventListener('click', () => {
         const i = parseInt(btn.dataset.paraDown);
         if (i >= data.length - 1) return;
+        revealHidden(document.querySelector(`[data-para-idx="${i}"]`));
         const oldForm = document.querySelector(`[data-para-edit-form="${i}"]`);
         const oldFormTop = oldForm ? oldForm.getBoundingClientRect().top : null;
         [data[i], data[i + 1]] = [data[i + 1], data[i]];
         _refreshBody();
         _reopenParaEdit(i + 1, oldFormTop, '[data-para-down]');
+        revealHidden(document.querySelector(`[data-para-idx="${i + 1}"]`));
       })
     );
 
     /* delete — commits pending moves along with the deletion as one undo entry */
     document.querySelectorAll('[data-para-del]').forEach(btn =>
       btn.addEventListener('click', async e => {
+        revealHidden(document.querySelector(`[data-para-idx="${btn.dataset.paraDel}"]`));
         if (!await showConfirm('Delete this paragraph?', 'delete', e)) return;
         const i      = parseInt(btn.dataset.paraDel);
         const before = _editSnapshot ?? [...data];
@@ -458,6 +467,8 @@ function createTextPage(cfg) {
   function render() {
     document.getElementById('app').innerHTML = _pageHTML();
     _bindEvents();
+    tagParaHideKeys(document.getElementById('app'));
+    applyHiding(document.getElementById('app'));
   }
 
   return { render };

@@ -380,6 +380,25 @@ body {
 }
 
 /* ================================================================
+   HIDING (SPOILER) MODE
+   ================================================================ */
+.dict-word.spoiler-hidden,
+.dict-body.spoiler-hidden,
+.para-content g.spoiler-hidden,
+.para-content h.spoiler-hidden {
+  background: var(--surface-3);
+  color: transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* .dict-pos sets its own color, so it needs an explicit override to stay covered */
+.dict-body.spoiler-hidden .dict-pos {
+  color: transparent;
+}
+
+/* ================================================================
    TEXT PAGES
    ================================================================ */
 /* center the main text column so titles, subtitles, and actions align */

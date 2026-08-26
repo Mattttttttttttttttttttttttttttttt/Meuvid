@@ -141,6 +141,91 @@ function showConfirm(message, confirmLabel = 'confirm', event = null) {
   });
 }
 
+/* ── Hiding (spoiler) mode ── */
+
+let _hideWords = false;
+let _hideDefs  = false;
+const _wordExceptions = new Set(); // keys whose covered state differs from the baseline
+const _defExceptions  = new Set();
+
+function _hideKind(el) {
+  if (el.classList.contains('dict-word')) return 'word';
+  if (el.classList.contains('dict-body')) return 'def';
+  if (el.tagName === 'G') return 'word';
+  if (el.tagName === 'H') return 'def';
+  return null;
+}
+function _hideBaseline(kind)   { return kind === 'word' ? _hideWords : _hideDefs; }
+function _hideExceptions(kind) { return kind === 'word' ? _wordExceptions : _defExceptions; }
+function _isCovered(key, kind) { return _hideBaseline(kind) !== _hideExceptions(kind).has(key); }
+
+/** Stable key for a dict entry/reference, so hidden state survives reordering and re-renders. */
+function hideKeyForEntry(word, id, field) { return `w:${word}::${id ?? ''}::${field}`; }
+
+/** Assign each <g>/<h> tag inside under root a stable key derived from
+    its paragraph's text and its occurrence within it. Call
+    after inserting any new paragraph markup, before applyHiding(). */
+function tagParaHideKeys(root) {
+  (root || document).querySelectorAll('.para-content').forEach(pc => {
+    const counts = {};
+    pc.querySelectorAll('g, h').forEach(el => {
+      const tag = el.tagName.toLowerCase();
+      counts[tag] = (counts[tag] || 0) + 1;
+      el.dataset.hideKey = `p:${pc.textContent}::${tag}${counts[tag]}`;
+    });
+  });
+}
+
+function _syncHideEl(el) {
+  const key = el.dataset.hideKey, kind = _hideKind(el);
+  if (!key || !kind) return;
+  el.classList.toggle('spoiler-hidden', _isCovered(key, kind));
+}
+
+/** Apply current hidden/revealed state to every coverable element under root
+    (the whole document if omitted). Call after any render that might contain
+    dict-word/dict-body spans or <g>/<h> tags. */
+function applyHiding(root) {
+  (root || document).querySelectorAll('[data-hide-key]').forEach(_syncHideEl);
+}
+
+function toggleHideWords() { _hideWords = !_hideWords; _wordExceptions.clear(); applyHiding(); }
+function toggleHideDefs()  { _hideDefs  = !_hideDefs;  _defExceptions.clear();  applyHiding(); }
+
+/** Force el (and everything coverable inside it) to be revealed, regardless of
+    the baseline. Call this right before an edit form opens, an item moves, or
+    its delete confirmation shows, so the user isn't acting on text they can't
+    read. */
+function revealHidden(el) {
+  if (!el) return;
+  const nodes = el.matches?.('[data-hide-key]')
+    ? [el, ...el.querySelectorAll('[data-hide-key]')]
+    : [...(el.querySelectorAll?.('[data-hide-key]') || [])];
+  nodes.forEach(n => {
+    const key = n.dataset.hideKey, kind = _hideKind(n);
+    if (!key || !kind) return;
+    const exc = _hideExceptions(kind);
+    if (_hideBaseline(kind)) exc.add(key); else exc.delete(key); // force covered = false
+    _syncHideEl(n);
+  });
+}
+
+/*
+ * Click a coverable region (nothing selected, no modifier held) to flip its
+ * hidden state, independent of the baseline mode.
+ */
+document.addEventListener('click', e => {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  if (window.getSelection()?.toString()) return; // was a text selection, not a click
+  const el = e.target.closest('[data-hide-key]');
+  if (!el) return;
+  const key = el.dataset.hideKey, kind = _hideKind(el);
+  if (!key || !kind) return;
+  const exc = _hideExceptions(kind);
+  exc.has(key) ? exc.delete(key) : exc.add(key);
+  _syncHideEl(el);
+});
+
 /* ── Global keyboard shortcuts ── */
 
 /*
@@ -175,7 +260,11 @@ function initGlobalShortcuts() {
       return;
     }
 
-    // Ctrl+F → focus search input (dict/roots pages)
+    // Ctrl+Shift+G / Ctrl+Shift+H → toggle hiding
+    if (ctrl && e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); toggleHideWords(); return; }
+    if (ctrl && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); toggleHideDefs();  return; }
+
+    // Ctrl+F → focus search input
     if (ctrl && e.key === 'f') {
       const si = document.getElementById('search-input');
       if (si) { e.preventDefault(); si.focus(); si.select(); }

@@ -150,11 +150,14 @@ function createDictSection(cfg) {
         <button class="btn btn-sm btn-ghost" data-item-down="${s}.${i}" title="move down">↓</button>
         <button class="btn btn-sm btn-danger" data-item-del="${s}.${i}" title="remove from section">×</button>
       </div>` : '';
+    const refId = ref.length > 1 ? ref[1] : null;
+    const wKey = esc(hideKeyForEntry(word, refId, 'word'));
+    const dKey = esc(hideKeyForEntry(word, refId, 'def'));
     const body = deleted
-      ? `<span class="dict-word">${esc(word)}</span>
-         <span class="dict-body sec-deleted">deleted from ${hasPos ? 'dictionary' : 'roots'}</span>`
-      : `<span class="dict-word">${esc(entry[0])}</span>
-         <span class="dict-body">${(hasPos && entry[1]) ? `<span class="dict-pos">${esc(entry[1])} </span>` : ''}${esc(entry[defIdx] ?? '')}</span>`;
+      ? `<span class="dict-word" data-hide-key="${wKey}">${esc(word)}</span>
+         <span class="dict-body sec-deleted" data-hide-key="${dKey}">deleted from ${hasPos ? 'dictionary' : 'roots'}</span>`
+      : `<span class="dict-word" data-hide-key="${wKey}">${esc(entry[0])}</span>
+         <span class="dict-body" data-hide-key="${dKey}">${(hasPos && entry[1]) ? `<span class="dict-pos">${esc(entry[1])} </span>` : ''}${esc(entry[defIdx] ?? '')}</span>`;
 
     const posEditField = editable && hasPos ? `
       <input class="form-input" style="width:80px;flex-shrink:0"
@@ -348,16 +351,25 @@ function createDictSection(cfg) {
   const _si = v => v.split('.').map(Number);
 
   /* ── mutations ── */
+  /* Returns the item's new [section, index] position, or null if it couldn't move. */
   function _moveItem(s, i, dir) {
     const items = sections[s][1];
     if (dir < 0) {
-      if (i > 0) { [items[i - 1], items[i]] = [items[i], items[i - 1]]; return true; }
-      if (s > 0) { sections[s - 1][1].push(items.splice(i, 1)[0]); return true; }
-      return false;
+      if (i > 0) { [items[i - 1], items[i]] = [items[i], items[i - 1]]; return [s, i - 1]; }
+      if (s > 0) {
+        const it = items.splice(i, 1)[0];
+        sections[s - 1][1].push(it);
+        return [s - 1, sections[s - 1][1].length - 1];
+      }
+      return null;
     }
-    if (i < items.length - 1) { [items[i + 1], items[i]] = [items[i], items[i + 1]]; return true; }
-    if (s < sections.length - 1) { sections[s + 1][1].unshift(items.splice(i, 1)[0]); return true; }
-    return false;
+    if (i < items.length - 1) { [items[i + 1], items[i]] = [items[i], items[i + 1]]; return [s, i + 1]; }
+    if (s < sections.length - 1) {
+      const it = items.splice(i, 1)[0];
+      sections[s + 1][1].unshift(it);
+      return [s + 1, 0];
+    }
+    return null;
   }
 
   /** Insert a value at the adder's current position; advance so the next add lands after it. */
@@ -402,7 +414,9 @@ function createDictSection(cfg) {
           b.querySelector('[data-item-form]')?.classList.remove('open');
         });
         const [s, i] = _si(btn.dataset.itemEdit);
-        container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`)?.classList.add('editing');
+        const block = container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`);
+        revealHidden(block);
+        block?.classList.add('editing');
         _openCollapse(container.querySelector(`[data-item-form="${s}.${i}"]`), '.form-input, .form-textarea');
       })
     );
@@ -427,6 +441,7 @@ function createDictSection(cfg) {
           if (!word || !def) return;
           updateDictEntry(entry[0], entryId(entry), word, pos, def);
           render(container);
+          revealHidden(container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`));
         } else {
           const text = (container.querySelector(`[data-item-ta="${s}.${i}"]`)?.value || '').trim();
           if (!text) return;
@@ -434,6 +449,7 @@ function createDictSection(cfg) {
           sections[s][1][i] = text;
           commit(before);
           render(container);
+          revealHidden(container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`));
         }
       })
     );
@@ -441,20 +457,31 @@ function createDictSection(cfg) {
       btn.addEventListener('click', () => {
         const [s, i] = _si(btn.dataset.itemUp);
         const before = clone(sections);
-        if (_moveItem(s, i, -1)) { commit(before); render(container); }
+        revealHidden(container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`));
+        const moved = _moveItem(s, i, -1);
+        if (!moved) return;
+        commit(before);
+        render(container);
+        revealHidden(container.querySelector(`.sec-item[data-sec="${moved[0]}"][data-item="${moved[1]}"]`));
       })
     );
     container.querySelectorAll('[data-item-down]').forEach(btn =>
       btn.addEventListener('click', () => {
         const [s, i] = _si(btn.dataset.itemDown);
         const before = clone(sections);
-        if (_moveItem(s, i, 1)) { commit(before); render(container); }
+        revealHidden(container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`));
+        const moved = _moveItem(s, i, 1);
+        if (!moved) return;
+        commit(before);
+        render(container);
+        revealHidden(container.querySelector(`.sec-item[data-sec="${moved[0]}"][data-item="${moved[1]}"]`));
       })
     );
     container.querySelectorAll('[data-item-del]').forEach(btn =>
       btn.addEventListener('click', async e => {
         const [s, i] = _si(btn.dataset.itemDel);
         const isWord = Array.isArray(sections[s][1][i]);
+        revealHidden(container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`));
         if (!await showConfirm(
           isWord ? 'Remove this word from the section?' : 'Delete this paragraph?',
           isWord ? 'remove' : 'delete', e)) return;
@@ -647,10 +674,12 @@ function createDictSection(cfg) {
     if (!results.length) { box.innerHTML = `<div class="sec-empty">No matches.</div>`; return; }
     box.innerHTML = results.map(e => {
       const pos = (hasPos && e[1]) ? `<span class="dict-pos">${esc(e[1])} </span>` : '';
+      const wKey = esc(hideKeyForEntry(e[0], entryId(e), 'word'));
+      const dKey = esc(hideKeyForEntry(e[0], entryId(e), 'def'));
       return `
         <button class="assign-result" data-assign-pick="${encodeURIComponent(JSON.stringify(e))}">
-          <span class="dict-word">${esc(e[0])}</span>
-          <span class="dict-body">${pos}${esc(e[defIdx] ?? '')}</span>
+          <span class="dict-word" data-hide-key="${wKey}">${esc(e[0])}</span>
+          <span class="dict-body" data-hide-key="${dKey}">${pos}${esc(e[defIdx] ?? '')}</span>
         </button>`;
     }).join('');
     box.querySelectorAll('[data-assign-pick]').forEach(btn =>
@@ -658,6 +687,7 @@ function createDictSection(cfg) {
         _insertAtAdder(refFor(JSON.parse(decodeURIComponent(btn.dataset.assignPick)))))
     );
     _setAssignSel(adder.sel || 0);
+    applyHiding(box);
   }
 
   /* Highlight the n-th assign result, clamped to range. */
@@ -718,6 +748,8 @@ function createDictSection(cfg) {
     _bindItemEvents();
     _bindAdderEvents();
     _bindBottomEvents();
+    tagParaHideKeys(container);
+    applyHiding(container);
   }
 
   /* Escape closes the adder, then any open heading or add-section form.

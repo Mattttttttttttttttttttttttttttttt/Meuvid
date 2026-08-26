@@ -106,6 +106,7 @@ function createDictPage(cfg) {
     const newId = entryId(newEntry);
     if (oldWord !== word || oldId !== newId) sectionView?.updateRef(oldWord, oldId, word, newId);
     if (viewMode === 'list') _refreshList();
+    revealHidden(document.querySelector(`[data-entry-idx="${idx}"]`)); // stays visible past the rebuild
     return newId != null ? [newEntry[0], newId] : [newEntry[0]];
   }
 
@@ -171,11 +172,13 @@ function createDictPage(cfg) {
         </div>
       </div>` : '';
 
+    const wKey = esc(hideKeyForEntry(entry[0], entryId(entry), 'word'));
+    const dKey = esc(hideKeyForEntry(entry[0], entryId(entry), 'def'));
     return `
       <div class="dict-entry-wrapper" data-entry-idx="${realIdx}">
         <div class="dict-entry">
-          <span class="dict-word">${esc(entry[0])}</span>
-          <span class="dict-body">${posSpan}${esc(entry[hasPos ? 2 : 1])}</span>
+          <span class="dict-word" data-hide-key="${wKey}">${esc(entry[0])}</span>
+          <span class="dict-body" data-hide-key="${dKey}">${posSpan}${esc(entry[hasPos ? 2 : 1])}</span>
           ${actions}
         </div>
         ${editForm}
@@ -275,6 +278,7 @@ function createDictPage(cfg) {
         const wrapper  = document.querySelector(`[data-entry-idx="${idx}"]`);
         const editForm = document.querySelector(`[data-edit-form="${idx}"]`);
         if (wrapper && editForm) {
+          revealHidden(wrapper);
           wrapper.classList.add('editing');
           editForm.classList.add('open');
           /* focus first input after visibility transition clears (see CSS 0s delay) */
@@ -321,6 +325,7 @@ function createDictPage(cfg) {
       btn.addEventListener('click', async e => {
         const idx  = parseInt(btn.dataset.delete);
         const word = data[idx]?.[0] || '';
+        revealHidden(document.querySelector(`[data-entry-idx="${idx}"]`));
         if (!await showConfirm(`Delete "${word}"?`, 'delete', e)) return;
         const before = JSON.parse(JSON.stringify(data));
         data = data.filter((_, i) => i !== idx);
@@ -356,11 +361,12 @@ function createDictPage(cfg) {
     if (viewMode === 'section' && sectionView) {
       // pick up edits made elsewhere (e.g. another tab) since page load
       data = load(dataKey, dataRaw);
-      sectionView.render(c);
+      sectionView.render(c); // applies hiding itself
       return;
     }
     c.innerHTML = _listModeHTML();
     _bindListModeEvents();
+    applyHiding(c);
     const si = document.getElementById('search-input');
     if (si) { const l = si.value.length; si.focus(); si.setSelectionRange(l, l); }
   }
@@ -448,6 +454,7 @@ function createDictPage(cfg) {
     if (!el) return;
     el.innerHTML = _listHTML();
     _bindListEvents();
+    applyHiding(el);
   }
 
   /* ── public render ── */
