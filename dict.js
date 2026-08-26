@@ -1,18 +1,18 @@
 /* ================================================================
-   dict.js — dictionary and roots page (configurable)
+   dict.js — dictionary and affixes page (configurable)
    Depends on: data.js, utils.js, auth.js
    ================================================================ */
 
 /**
- * Create a dictionary/roots page.
+ * Create a dictionary/affixes page.
  *
  * @param {object} cfg
- * @param {boolean}  cfg.hasPos     - true for dictionary (has POS field), false for roots
+ * @param {boolean}  cfg.hasPos     - true for dictionary (has POS field), false for affixes
  * @param {string}   cfg.dataKey    - localStorage key, e.g. 'mv_dict'
  * @param {Array[]}  cfg.dataRaw    - fallback data array
- * @param {Array[]}  cfg.kwTable    - keywords table (DICT_KEYWORDS or ROOTS_KEYWORDS)
- * @param {string}   cfg.label      - singular label, e.g. 'word' or 'root'
- * @param {string}   cfg.noun       - plural label, e.g. 'words' or 'roots'
+ * @param {Array[]}  cfg.kwTable    - keywords table (DICT_KEYWORDS or AFFIXES_KEYWORDS)
+ * @param {string}   cfg.label      - singular label, e.g. 'word' or 'affix'
+ * @param {string}   cfg.noun       - plural label, e.g. 'words' or 'affixes'
  *
  * @returns {{ render: Function }}
  */
@@ -22,7 +22,7 @@ function createDictPage(cfg) {
   const viewKey     = dataKey + '_view'; // 'list' | 'section'
 
   /* An entry is [word, pos, def] (+ optional numeric id) for the dictionary, or
-     [word, def] (+ optional id) for roots. The id is the trailing element and
+     [word, def] (+ optional id) for affixes. The id is the trailing element and
      exists only to disambiguate a word that appears more than once; the first
      occurrence of a duplicated word stays id-less. */
   const baseLen = hasPos ? 3 : 2; // entry length without an id
@@ -35,7 +35,7 @@ function createDictPage(cfg) {
   let showKwModal = false;
   let viewMode    = hasSections ? load(viewKey, 'list') : 'list';
 
-  /* ── section view module (dictionary/roots) ── */
+   /* ── section view module (dictionary/affixes) ── */
   const sectionView = hasSections ? createDictSection({
     sectionsKey: cfg.sectionsKey,
     sectionsRaw: cfg.sectionsRaw,

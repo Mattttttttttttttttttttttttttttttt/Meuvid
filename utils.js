@@ -380,7 +380,7 @@ function filterEntries(data, query, hasPos) {
 /* ── Inline SVG icons ── */
 
 /**
- * Serialize a 2D array (e.g. dict, roots) into a JS array literal.
+ * Serialize a 2D array (e.g. dict, affixes) into a JS array literal.
  * Each sub-array becomes one indented line.
  */
 function _ser2D(arr) {
@@ -417,12 +417,12 @@ function _serSections(arr) {
 
 const MV_DATA_KEYS = [
   'mv_dict', 'mv_dict_view',
-  'mv_roots', 'mv_roots_view',
+  'mv_affixes', 'mv_affixes_view',
   'mv_grammar',
   'mv_phonetics',
   'mv_philosophy',
   'mv_sections',
-  'mv_roots_sections',
+  'mv_affixes_sections',
   'mv_undo', 'mv_redo',
 ];
 
@@ -437,12 +437,12 @@ function resetMeuvidData() {
  */
 function exportDataJS() {
   const dict = load('mv_dict', DICT);
-  const roots = load('mv_roots', ROOTS);
+  const affixes = load('mv_affixes', AFFIXES);
   const grammar = load('mv_grammar', GRAMMAR);
   const phonetics = load('mv_phonetics', PHONETICS);
   const philosophy = load('mv_philosophy', PHILOSOPHY);
   const sections = load('mv_sections', SECTIONS);
-  const rootsSections = load('mv_roots_sections', ROOTS_SECTIONS);
+  const affixesSections = load('mv_affixes_sections', AFFIXES_SECTIONS);
 
   const ts = new Date().toISOString();
 
@@ -454,7 +454,7 @@ function exportDataJS() {
 
 const DICT = ${_ser2D(dict)};
 
-const ROOTS = ${_ser2D(roots)};
+const AFFIXES = ${_ser2D(affixes)};
 
 const GRAMMAR = ${_ser1D(grammar)};
 
@@ -464,7 +464,7 @@ const PHILOSOPHY = ${_ser1D(philosophy)};
 
 const SECTIONS = ${_serSections(sections)};
 
-const ROOTS_SECTIONS = ${_serSections(rootsSections)};
+const AFFIXES_SECTIONS = ${_serSections(affixesSections)};
 `;
 
   const blob = new Blob([content], { type: 'text/javascript' });

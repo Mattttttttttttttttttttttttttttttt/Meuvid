@@ -4,19 +4,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meuvid — Roots</title>
-  <meta name="description" content="Meuvid dictionary for roots with definitions and themed sections">
+  <title>Meuvid — Affixes</title>
+  <meta name="description" content="Meuvid dictionary for affixes with definitions and themed sections">
   <meta name="author" content="Matt Mao">
-  <link rel="canonical" href="https://matt-meow.web.app/meuvid/roots/">
-  <meta property="og:title" content="Meuvid — Roots">
-  <meta property="og:description" content="Meuvid dictionary for roots with definitions and themed sections">
+  <link rel="canonical" href="https://matt-meow.web.app/meuvid/affixes/">
+  <meta property="og:title" content="Meuvid — Affixes">
+  <meta property="og:description" content="Meuvid dictionary for affixes with definitions and themed sections">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://matt-meow.web.app/meuvid/roots/">
+  <meta property="og:url" content="https://matt-meow.web.app/meuvid/affixes/">
   <meta property="og:site_name" content="matt meow&#39;s corner">
   <meta property="og:image" content="https://matt-meow.web.app/meuvid/icons/meuvid-512.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Meuvid — Roots">
-  <meta name="twitter:description" content="Meuvid dictionary for roots with definitions and themed sections">
+  <meta name="twitter:title" content="Meuvid — Affixes">
+  <meta name="twitter:description" content="Meuvid dictionary for affixes with definitions and themed sections">
   <meta name="twitter:image" content="https://matt-meow.web.app/meuvid/icons/meuvid-512.png">
   <link rel="stylesheet" href="../style.css">
   <link rel="icon" type="image/svg+xml" href="../icons/meuvid.svg">
@@ -37,19 +37,19 @@
   <script>
     const page = createDictPage({
       hasPos: false,
-      dataKey: 'mv_roots',
-      dataRaw: ROOTS,
-      kwTable: ROOTS_KEYWORDS,
-      label: 'root',
-      noun: 'roots',
+      dataKey: 'mv_affixes',
+      dataRaw: AFFIXES,
+      kwTable: AFFIXES_KEYWORDS,
+      label: 'affix',
+      noun: 'affixes',
       hasSections: true,
-      sectionsKey: 'mv_roots_sections',
-      sectionsRaw: ROOTS_SECTIONS,
+      sectionsKey: 'mv_affixes_sections',
+      sectionsRaw: AFFIXES_SECTIONS,
     });
 
     function render() {
       initNav(
-        'roots',
+        'affixes',
         () => AUTH.showLoginModal(render),
         () => { AUTH.logout(); render(); }
       );

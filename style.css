@@ -327,7 +327,7 @@ body {
 }
 
 /* ================================================================
-   DICTIONARY / ROOTS LIST
+   DICTIONARY / AFFIXES LIST
    ================================================================ */
 .dict-entry {
   display: flex;
@@ -1051,7 +1051,7 @@ code {
     padding: 22px 22px 18px;
   }
 
-  /* Dictionary / roots rows: let the word + actions share the top line and
+  /* Dictionary / affixes rows: let the word + actions share the top line and
      drop the definition body onto its own full-width line instead of being
      crushed into a sliver of space. "order" does the reordering, since the
      actions markup comes after the body in the DOM. */

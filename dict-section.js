@@ -1,5 +1,5 @@
 /* ================================================================
-   dict-section.js — section view for the dictionary and roots pages
+   dict-section.js — section view for the dictionary and affixes pages
    Depends on: utils.js, auth.js, lang-data.js
 
    Data model (localStorage key cfg.sectionsKey, fallback cfg.sectionsRaw):
@@ -155,7 +155,7 @@ function createDictSection(cfg) {
     const dKey = esc(hideKeyForEntry(word, refId, 'def'));
     const body = deleted
       ? `<span class="dict-word" data-hide-key="${wKey}">${esc(word)}</span>
-         <span class="dict-body sec-deleted" data-hide-key="${dKey}">deleted from ${hasPos ? 'dictionary' : 'roots'}</span>`
+         <span class="dict-body sec-deleted" data-hide-key="${dKey}">deleted from ${hasPos ? 'dictionary' : 'affixes'}</span>`
       : `<span class="dict-word" data-hide-key="${wKey}">${esc(entry[0])}</span>
          <span class="dict-body" data-hide-key="${dKey}">${(hasPos && entry[1]) ? `<span class="dict-pos">${esc(entry[1])} </span>` : ''}${esc(entry[defIdx] ?? '')}</span>`;
 
@@ -263,7 +263,7 @@ function createDictSection(cfg) {
           <div class="add-form-title">New word</div>
           <div class="form-row">
             <div class="form-group" style="flex-grow:0;min-width:130px">
-              <label class="form-label">${hasPos ? 'word' : 'root'}</label>
+              <label class="form-label">${hasPos ? 'word' : 'affix'}</label>
               <input class="form-input" id="adder-word-w" placeholder="${hasPos ? 'vid' : 'vid'}" />
             </div>
             ${posField}

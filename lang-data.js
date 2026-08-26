@@ -1,17 +1,20 @@
 /* ================================================================
    lang-data.js — all language data arrays
-   Last updated: 2026-08-25T05:45:51.402Z
+   Last updated: 2026-08-26T22:54:27.274Z
    ================================================================ */
 
 const DICT = [
   ["aesh", "prep.", "within: 1D/2D; [+ time range / day, etc.]"],
   ["aik", "adv.", "4/5"],
+  ["amar", "n.", "house: a place someone would call home"],
+  ["amare", "n.", "home: where you feel like you belong"],
   ["anan", "n.", "object, thing"],
   ["ap", "prep.", "at: 0D; with regards to, about; [+ time point]"],
   ["arn", "adv.", "next day (precede with number); tomorrow"],
   ["auz'bleu", "n.", "nostalgia: helplessness from that you cannot return to the past"],
   ["auz'meus", "n.", "language"],
   ["baesh", "det.", "former: the earlier-mentioned of the two of smth"],
+  ["bai", "prep.", "outside: any dimension"],
   ["baira", "prep.", "out of: any dimension"],
   ["bas", "adj./n.", "cyan: 00fffff"],
   ["beem", "n.", "two"],
@@ -111,6 +114,7 @@ const DICT = [
   ["mopn", "pron.", "first person plural, including \"blop\""],
   ["mosh", "abbr.", "=mo she"],
   ["moumet", "mod v.", "allegedly"],
+  ["muamet", "mod v.", "seem like"],
   ["nel", "adj.", "short: vertically short"],
   ["nil", "n.", "zero"],
   ["oot", "n.", "place, location"],
@@ -132,7 +136,7 @@ const DICT = [
   ["se", "prep.", "[+glv] from glv's perspective"],
   ["shau", "det.", "the: for proper nouns"],
   ["she", "v.", "=sher [mo she ⇒ mosh]"],
-  ["sher", "v.", "be: has the property (characteristic) that"],
+  ["sher", "v.", "be: strict equal, literally is"],
   ["sher", "n.", "time", 1],
   ["sheren", "v.", "=sher [for all plural pronouns]"],
   ["sherm", "v.", "=sher [blop sherm]"],
@@ -148,7 +152,7 @@ const DICT = [
   ["suvein", "prep.", "over, across: cross a 0/1D; end to end in 2D"],
   ["ti", "det.", "the: aforementioned, [there is only one thing based on context]"],
   ["top", "adv.", "0/5"],
-  ["tsi", "prep.", "touching: 2D"],
+  ["tsi", "prep.", "touching: 1D/2D"],
   ["tu'laoshi", "adj.", "wise: [person] has lots of tulaosh"],
   ["tulaosh", "n.", "wisdom: life lesson"],
   ["tulen", "n.", "knowledge: information or skill from experience or education"],
@@ -186,7 +190,7 @@ const DICT = [
   ["zoot", "q.", "where: replaces a oot adv."],
 ];
 
-const ROOTS = [
+const AFFIXES = [
   ["bi", "small: 2D/3D"],
   ["bleu", "relating to the past"],
   ["cee", "shallow: front-back short"],
@@ -228,10 +232,10 @@ const GRAMMAR = [
   "# inflections",
   "- plural: add -il",
   "- comparative: all adjectives are by definition a comparative\n- superlative: add -oe",
-  "- past: change to -eul\n- perfect: change to -ov\n- passive: chanve to -am",
+  "- past: change to -eul\n- perfect: change to -ov\n- progressive: change to -eiz\n- passive: chanve to -am",
   "# derivation",
   "- substitute with z- to create the question word\n- substitute with w- to create the restrictive relative pronoun\n- substitute with bu- to create the unrestrictive relative pronoun",
-  "- ge-: [adj. ­=> vt.] to turn gln into [adj.], to make gln [adj.]\n- -an: [v. => n.] the action of doing [v.]; [adj. => n.] the property related to [adj.]\n- en-: if the old term was x against 0, then the new term is 0 against x\n- fe-: if the old term was x against 0, then the new term is -x against 0",
+  "- ge-: [adj. ­=> vt.] to turn gln into [adj.], to make gln [adj.]\n- -an: [v. => n.] the action of doing [v.]\n          [adj. => n.] the property related to [adj.]\n- en-: if the old term was x against 0, then the new term is 0 against x\n- fe-: if the old term was x against 0, then the new term is -x against 0",
 ];
 
 const PHONETICS = [
@@ -289,6 +293,7 @@ const SECTIONS = [
     ["kifet"],
     ["mimet"],
     ["moumet"],
+    ["muamet"],
     ["rinet"],
     ["sher"],
     ["vuet"],
@@ -322,6 +327,7 @@ const SECTIONS = [
     ["tsi"],
     ["aesh"],
     ["oun"],
+    ["bai"],
     ["hol"],
     ["run"],
     ["lud"],
@@ -391,7 +397,7 @@ const SECTIONS = [
   ]],
 ];
 
-const ROOTS_SECTIONS = [
+const AFFIXES_SECTIONS = [
   ["size", [
     ["hi"],
     ["zau"],

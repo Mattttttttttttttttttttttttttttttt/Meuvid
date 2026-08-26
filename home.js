@@ -3,11 +3,11 @@
    Depends on: data.js, utils.js
    ================================================================ */
 
-function renderHome(dict, roots) {
+function renderHome(dict, affixes) {
   const cards = HOME_CARDS.map(c => {
     const meta =
       c.id === 'dict'  ? `${dict.length} word${dict.length !== 1 ? 's' : ''}` :
-      c.id === 'roots' ? `${roots.length} root${roots.length !== 1 ? 's' : ''}` :
+      c.id === 'affixes' ? `${affixes.length} affixe${affixes.length !== 1 ? 's' : ''}` :
       '';
     return `
       <a class="card-link" href="${c.href}">
