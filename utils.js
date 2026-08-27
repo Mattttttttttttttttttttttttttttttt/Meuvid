@@ -162,16 +162,21 @@ function _isCovered(key, kind) { return _hideBaseline(kind) !== _hideExceptions(
 /** Stable key for a dict entry/reference, so hidden state survives reordering and re-renders. */
 function hideKeyForEntry(word, id, field) { return `w:${word}::${id ?? ''}::${field}`; }
 
-/** Assign each <g>/<h> tag inside under root a stable key derived from
-    its paragraph's text and its occurrence within it. Call
+/** Assign each <g>/<h> tag inside .para-content under root a stable key, tied
+    to the same positional id (data-para-idx, or data-sec/data-item) that
+    revealHidden() already uses. Call
     after inserting any new paragraph markup, before applyHiding(). */
 function tagParaHideKeys(root) {
   (root || document).querySelectorAll('.para-content').forEach(pc => {
+    const block = pc.closest('[data-para-idx], [data-sec][data-item]');
+    const blockId = !block ? 'x'
+      : block.dataset.paraIdx !== undefined ? `t${block.dataset.paraIdx}`
+      : `s${block.dataset.sec}.${block.dataset.item}`;
     const counts = {};
     pc.querySelectorAll('g, h').forEach(el => {
       const tag = el.tagName.toLowerCase();
       counts[tag] = (counts[tag] || 0) + 1;
-      el.dataset.hideKey = `p:${pc.textContent}::${tag}${counts[tag]}`;
+      el.dataset.hideKey = `p:${blockId}:${tag}${counts[tag]}`;
     });
   });
 }
@@ -184,9 +189,12 @@ function _syncHideEl(el) {
 
 /** Apply current hidden/revealed state to every coverable element under root
     (the whole document if omitted). Call after any render that might contain
-    dict-word/dict-body spans or <g>/<h> tags. */
+    dict-word/dict-body spans or <g>/<h> tags. Each element is synced in its
+    own try/catch so one bad node can't abort the rest of the pass. */
 function applyHiding(root) {
-  (root || document).querySelectorAll('[data-hide-key]').forEach(_syncHideEl);
+  (root || document).querySelectorAll('[data-hide-key]').forEach(el => {
+    try { _syncHideEl(el); } catch (err) { console.error('applyHiding failed for', el, err); }
+  });
 }
 
 function toggleHideWords() { _hideWords = !_hideWords; _wordExceptions.clear(); applyHiding(); }
@@ -216,9 +224,10 @@ function revealHidden(el) {
  */
 document.addEventListener('click', e => {
   if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-  if (window.getSelection()?.toString()) return; // was a text selection, not a click
   const el = e.target.closest('[data-hide-key]');
   if (!el) return;
+  const sel = window.getSelection();
+  if (sel && !sel.isCollapsed && el.contains(sel.anchorNode)) return; // was a text selection over el, not a click
   const key = el.dataset.hideKey, kind = _hideKind(el);
   if (!key || !kind) return;
   const exc = _hideExceptions(kind);

@@ -93,7 +93,7 @@ function createDictSection(cfg) {
     const entry = refHasId(ref)
       ? matches.find(e => entryId(e) === ref[1])
       : matches.find(e => entryId(e) == null);
-    return entry ? { entry } : { deleted: true, word: ref[0] };
+    return entry ? { entry, word: ref[0] } : { deleted: true, word: ref[0] };
   }
 
   /** Numeric ids currently held by references; used by the host to avoid id reuse. */
