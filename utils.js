@@ -11,6 +11,11 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
+/** Wrap `backtick` regions in a distinct-font span, for in-language snippets. */
+function withSnippets(s) {
+  return String(s).replace(/`([^`\n]+)`/g, '<span class="lang-snippet">$1</span>');
+}
+
 /** Load a value from localStorage, falling back to defaultValue. */
 function load(key, defaultValue) {
   try {
@@ -89,6 +94,15 @@ function wrapSelectedText(ta, open, close) {
 
 /* ── Confirmation modal ── */
 
+/*
+ * Track whether Shift is currently held via keyboard events.
+ * window blur resets it so we don't get stuck "held".
+ */
+let _shiftHeld = false;
+document.addEventListener('keydown', e => { if (e.key === 'Shift') _shiftHeld = true;  }, true);
+document.addEventListener('keyup',   e => { if (e.key === 'Shift') _shiftHeld = false; }, true);
+window.addEventListener('blur', () => { _shiftHeld = false; });
+
 /**
  * Show a styled yes/no dialog. Returns a Promise that resolves to true (confirmed)
  * or false (cancelled). Cancel button is focused by default.
@@ -98,15 +112,6 @@ function wrapSelectedText(ta, open, close) {
  * @param {string} [confirmLabel='confirm']
  * @param {Event}  [event] originating event; if shiftKey is held, skip the dialog
  */
-/* Track whether Shift is currently held via keyboard events. Some input setups
- * (e.g. certain Linux configs) don't populate the modifier flags on mouse/pointer
- * events, so reading event.shiftKey on a click is unreliable — keyboard events do
- * carry the state. window blur resets it so we don't get stuck "held". */
-let _shiftHeld = false;
-document.addEventListener('keydown', e => { if (e.key === 'Shift') _shiftHeld = true;  }, true);
-document.addEventListener('keyup',   e => { if (e.key === 'Shift') _shiftHeld = false; }, true);
-window.addEventListener('blur', () => { _shiftHeld = false; });
-
 function showConfirm(message, confirmLabel = 'confirm', event = null) {
   if ((event && event.shiftKey) || _shiftHeld) return Promise.resolve(true);
   return new Promise(resolve => {
@@ -141,6 +146,304 @@ function showConfirm(message, confirmLabel = 'confirm', event = null) {
   });
 }
 
+/* ── Hiding (spoiler) mode ── */
+
+let _hideWords = false;
+let _hideDefs  = false;
+const _wordExceptions = new Set(); // keys whose covered state differs from the baseline
+const _defExceptions  = new Set();
+
+function _hideKind(el) {
+  if (el.classList.contains('dict-word')) return 'word';
+  if (el.classList.contains('dict-body')) return 'def';
+  if (el.tagName === 'G') return 'word';
+  if (el.tagName === 'H') return 'def';
+  return null;
+}
+function _hideBaseline(kind)   { return kind === 'word' ? _hideWords : _hideDefs; }
+function _hideExceptions(kind) { return kind === 'word' ? _wordExceptions : _defExceptions; }
+function _isCovered(key, kind) { return _hideBaseline(kind) !== _hideExceptions(kind).has(key); }
+
+/** Stable key for a dict entry/reference, so hidden state survives reordering and re-renders. */
+function hideKeyForEntry(word, id, field) { return `w:${word}::${id ?? ''}::${field}`; }
+
+/** Random id for a new paragraph item ({ text, id }), kept for its lifetime so its
+    hide-key (see tagParaHideKeys) survives inserts/deletes/reorders elsewhere. */
+function randId() { return Math.random().toString(36).slice(2, 10); }
+
+/** Assign each <g>/<h> tag inside .para-content under root a stable key, tied to
+    the paragraph's own persistent id (data-para-id, set from the item's { id }).
+    Call after inserting any new paragraph markup, before applyHiding(). */
+function tagParaHideKeys(root) {
+  (root || document).querySelectorAll('.para-content[data-para-id]').forEach(pc => {
+    const blockId = pc.dataset.paraId;
+    const counts = {};
+    pc.querySelectorAll('g, h').forEach(el => {
+      const tag = el.tagName.toLowerCase();
+      counts[tag] = (counts[tag] || 0) + 1;
+      el.dataset.hideKey = `p:${blockId}:${tag}${counts[tag]}`;
+    });
+  });
+}
+
+function _syncHideEl(el) {
+  const key = el.dataset.hideKey, kind = _hideKind(el);
+  if (!key || !kind) return;
+  el.classList.toggle('spoiler-hidden', _isCovered(key, kind));
+}
+
+/** Apply current hidden/revealed state to every coverable element under root
+    (the whole document if omitted). Call after any render that might contain
+    dict-word/dict-body spans or <g>/<h> tags. Each element is synced in its
+    own try/catch so one bad node can't abort the rest of the pass. */
+function applyHiding(root) {
+  (root || document).querySelectorAll('[data-hide-key]').forEach(el => {
+    try { _syncHideEl(el); } catch (err) { console.error('applyHiding failed for', el, err); }
+  });
+}
+
+function toggleHideWords() { _hideWords = !_hideWords; _wordExceptions.clear(); applyHiding(); }
+function toggleHideDefs()  { _hideDefs  = !_hideDefs;  _defExceptions.clear();  applyHiding(); }
+
+/** Force el (and everything coverable inside it) to be revealed, regardless of
+    the baseline. Call this right before an edit form opens, an item moves, or
+    its delete confirmation shows, so the user isn't acting on text they can't
+    read. */
+function revealHidden(el) {
+  if (!el) return;
+  const nodes = el.matches?.('[data-hide-key]')
+    ? [el, ...el.querySelectorAll('[data-hide-key]')]
+    : [...(el.querySelectorAll?.('[data-hide-key]') || [])];
+  nodes.forEach(n => {
+    const key = n.dataset.hideKey, kind = _hideKind(n);
+    if (!key || !kind) return;
+    const exc = _hideExceptions(kind);
+    if (_hideBaseline(kind)) exc.add(key); else exc.delete(key); // force covered = false
+    _syncHideEl(n);
+  });
+}
+
+/*
+ * Click a coverable region (nothing selected, no modifier held) to flip its
+ * hidden state, independent of the baseline mode.
+ */
+document.addEventListener('click', e => {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  const el = e.target.closest('[data-hide-key]');
+  if (!el) return;
+  const sel = window.getSelection();
+  if (sel && !sel.isCollapsed && el.contains(sel.anchorNode)) return; // was a text selection over el, not a click
+  const key = el.dataset.hideKey, kind = _hideKind(el);
+  if (!key || !kind) return;
+  const exc = _hideExceptions(kind);
+  exc.has(key) ? exc.delete(key) : exc.add(key);
+  _syncHideEl(el);
+});
+
+/* Alt+scroll moves twice as fast. */
+window.addEventListener('wheel', e => {
+  if (!e.altKey) return;
+  e.preventDefault();
+  window.scrollBy({ top: e.deltaY * 2, left: e.deltaX * 2 });
+}, { passive: false });
+
+document.addEventListener('click', e => {
+  e.target.closest('button')?.blur();
+});
+
+/* ================================================================
+   Drag-to-reorder (paragraphs, dict-section items)
+
+   Any list of reorderable rows can opt in: give each row's outer block
+   data-drag-key="<key>" (its own current position) and a `.drag-handle`
+   child for desktop; the whole block is long-press-draggable on touch.
+   Insertion gaps already carry data-insert="<key>" — the position a drop
+   there inserts *before* — in the same key format as data-drag-key, so a
+   drop target's key can be read straight off it.
+
+   Call initDragReorder(container, onDrop) after every render/bind pass —
+   listeners don't survive a re-render, same as the rest of this app.
+   onDrop(fromKey, toKey) fires once, on release, with the source's key and
+   the target gap's key; it owns the actual data mutation + commit + render.
+   ================================================================ */
+function dragHandleHTML() {
+  return `<button type="button" class="drag-handle" tabindex="-1" aria-label="drag to reorder" data-tooltip="drag to reorder">${SVG_DRAG_HANDLE}</button>`;
+}
+
+const _DRAG = { active: false };
+const _LAST_TAP = { key: null, time: 0, x: 0, y: 0 };
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_DIST = 30;
+const DRAG_MOVE_THRESHOLD = 10;
+
+function initDragReorder(container, onDrop, onEdit) {
+  if (!container) return;
+
+  container.querySelectorAll('.drag-handle').forEach(handle => {
+    handle.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const block = handle.closest('[data-drag-key]');
+      if (block) _dragBegin(block, e.clientY, container, onDrop);
+    });
+  });
+
+  /* Touch: double tap → edit; tap+drag → reorder */
+  container.querySelectorAll('[data-drag-key]').forEach(block => {
+    const key = block.dataset.dragKey;
+    let tracking = false, sx = 0, sy = 0;
+
+    block.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1 || _DRAG.active) return;
+      const t = e.touches[0];
+      sx = t.clientX; sy = t.clientY;
+      tracking = _LAST_TAP.key === key
+        && Date.now() - _LAST_TAP.time < DOUBLE_TAP_MS
+        && Math.hypot(sx - _LAST_TAP.x, sy - _LAST_TAP.y) < DOUBLE_TAP_DIST;
+      if (tracking) {
+        _LAST_TAP.key = null; // consumed — a 3rd tap starts fresh
+        // This touch might turn into a drag → claim it before the browser commits it to a scroll.
+        block.style.touchAction = 'none';
+      }
+    }, { passive: true });
+
+    block.addEventListener('touchmove', e => {
+      if (_DRAG.active) { e.preventDefault(); _dragMove(e.touches[0].clientY); return; }
+      if (!tracking) return;
+      // Prevent every move while tracking, not just once past the drag threshold
+      // (the first un-prevented move lets the browser commit to scrolling,
+      // after which preventDefault() on later moves is ignored (cancelable=false))
+      e.preventDefault();
+      const t = e.touches[0];
+      if (Math.hypot(t.clientX - sx, t.clientY - sy) > DRAG_MOVE_THRESHOLD) {
+        tracking = false;
+        _dragBegin(block, t.clientY, container, onDrop);
+      }
+    }, { passive: false });
+
+    block.addEventListener('touchend', e => {
+      if (_DRAG.active) { _dragEnd(); return; }
+      if (tracking) {
+        tracking = false;
+        block.style.touchAction = '';
+        e.preventDefault(); // this was the 2nd tap — don't also fire its synthetic click
+        onEdit?.(key);
+        return;
+      }
+      _LAST_TAP.key = key; _LAST_TAP.time = Date.now(); _LAST_TAP.x = sx; _LAST_TAP.y = sy;
+    });
+
+    block.addEventListener('touchcancel', () => {
+      if (tracking) { tracking = false; block.style.touchAction = ''; }
+      if (_DRAG.active) _dragCancel();
+    });
+  });
+}
+
+function _dragBegin(block, y, container, onDrop) {
+  _DRAG.active = true;
+  _DRAG.srcEl = block;
+  _DRAG.srcKey = block.dataset.dragKey;
+  _DRAG.onDrop = onDrop;
+  _DRAG.target = null;
+  _DRAG.scrollDir = 0;
+  _DRAG.raf = null;
+
+  block.classList.add('drag-ghost');
+
+  const rect = block.getBoundingClientRect();
+  const preview = block.cloneNode(true);
+  preview.classList.add('drag-preview');
+  preview.classList.remove('drag-ghost');
+  preview.style.width = rect.width + 'px';
+  preview.style.left = rect.left + 'px';
+  preview.style.top = rect.top + 'px';
+  document.body.appendChild(preview);
+  _DRAG.preview = preview;
+  _DRAG.grabDY = y - rect.top; // keeps the preview from jumping to re-center under the cursor
+
+  _DRAG.gaps = [...container.querySelectorAll('.sec-insert')];
+
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'grabbing';
+  document.addEventListener('mousemove', _onDragMouseMove);
+  document.addEventListener('mouseup', _onDragMouseUp);
+  document.addEventListener('keydown', _onDragKey);
+
+  _dragMove(y);
+}
+
+function _onDragMouseMove(e) { _dragMove(e.clientY); }
+function _onDragMouseUp()    { _dragEnd(); }
+function _onDragKey(e)       { if (e.key === 'Escape') _dragCancel(); }
+
+function _dragMove(y) {
+  if (!_DRAG.active) return;
+  _DRAG.preview.style.top = (y - _DRAG.grabDY) + 'px';
+
+  let closest = null, closestDist = Infinity;
+  _DRAG.gaps.forEach(gap => {
+    const r = gap.getBoundingClientRect();
+    const d = Math.abs(r.top + r.height / 2 - y);
+    if (d < closestDist) { closestDist = d; closest = gap; }
+  });
+  if (closest !== _DRAG.target) {
+    _DRAG.target?.classList.remove('drag-target');
+    closest?.classList.add('drag-target');
+    _DRAG.target = closest;
+  }
+
+  _dragAutoscroll(y);
+}
+
+/* Medium-slow near an edge, ramping to medium after holding there 1s. */
+function _dragAutoscroll(y) {
+  const edge = 90;
+  _DRAG.scrollDir = y < edge ? -1 : y > window.innerHeight - edge ? 1 : 0;
+
+  if (_DRAG.scrollDir && !_DRAG.raf) {
+    _DRAG.scrollStartedAt = performance.now();
+    const tick = () => {
+      if (!_DRAG.active || !_DRAG.scrollDir) { _DRAG.raf = null; return; }
+      const speed = performance.now() - _DRAG.scrollStartedAt > 1000 ? 14 : 7;
+      window.scrollBy(0, _DRAG.scrollDir * speed);
+      _DRAG.raf = requestAnimationFrame(tick);
+    };
+    _DRAG.raf = requestAnimationFrame(tick);
+  } else if (!_DRAG.scrollDir && _DRAG.raf) {
+    cancelAnimationFrame(_DRAG.raf);
+    _DRAG.raf = null;
+  }
+}
+
+function _dragEnd() {
+  if (!_DRAG.active) return;
+  const { srcKey, target, onDrop } = _DRAG;
+  const toKey = target?.dataset.insert ?? null;
+  _dragCleanup();
+  if (toKey != null) onDrop(srcKey, toKey);
+}
+
+function _dragCancel() {
+  if (!_DRAG.active) return;
+  _dragCleanup();
+}
+
+function _dragCleanup() {
+  _DRAG.active = false;
+  if (_DRAG.srcEl) _DRAG.srcEl.style.touchAction = '';
+  _DRAG.srcEl?.classList.remove('drag-ghost');
+  _DRAG.target?.classList.remove('drag-target');
+  _DRAG.preview?.remove();
+  if (_DRAG.raf) cancelAnimationFrame(_DRAG.raf);
+  document.body.style.userSelect = '';
+  document.body.style.cursor = '';
+  document.removeEventListener('mousemove', _onDragMouseMove);
+  document.removeEventListener('mouseup', _onDragMouseUp);
+  document.removeEventListener('keydown', _onDragKey);
+  _DRAG.srcEl = null; _DRAG.target = null; _DRAG.preview = null; _DRAG.gaps = [];
+}
+
 /* ── Global keyboard shortcuts ── */
 
 /*
@@ -150,6 +453,13 @@ function showConfirm(message, confirmLabel = 'confirm', event = null) {
 let _escCleanup = null;
 function setEscCleanup(fn) { _escCleanup = fn; }
 function clearEscCleanup() { _escCleanup = null; }
+
+/*
+ * _escHandler: registered by a page (e.g. the section view) to close its own
+ * transient UI on Escape. Returns true when it handled the key.
+ */
+let _escHandler = null;
+function registerEscHandler(fn) { _escHandler = fn; }
 
 /**
  * Register site-wide keyboard shortcuts once per page load.
@@ -168,7 +478,11 @@ function initGlobalShortcuts() {
       return;
     }
 
-    // Ctrl+F → focus search input (dict/roots pages)
+    // Ctrl+Shift+G / Ctrl+Shift+H → toggle hiding
+    if (ctrl && e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); toggleHideWords(); return; }
+    if (ctrl && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); toggleHideDefs();  return; }
+
+    // Ctrl+F → focus search input
     if (ctrl && e.key === 'f') {
       const si = document.getElementById('search-input');
       if (si) { e.preventDefault(); si.focus(); si.select(); }
@@ -193,6 +507,8 @@ function initGlobalShortcuts() {
       if (document.getElementById('confirm-overlay')) return;
       // If a textpage edit session is active, revert moves and close
       if (_escCleanup) { _escCleanup(); _escCleanup = null; return; }
+      // Let a page-registered handler (section view) close its own UI first
+      if (_escHandler && _escHandler()) return;
       // Otherwise do the normal CSS-only close for dict and textpage forms
       document.querySelectorAll('.dict-entry-wrapper.editing').forEach(w => {
         w.classList.remove('editing');
@@ -219,10 +535,34 @@ function initGlobalShortcuts() {
 }
 
 /**
- * Filter a data array by a search query.
- * Supports keyword functions: pos(x), all(x), def(x). The closing paren is
- * optional, so "pos(a" behaves the same as "pos(a)". If the text before "("
- * isn't a recognized function, the whole query is treated as a literal search.
+ * Build a case-insensitive RegExp from a search fragment. Full regex syntax is
+ * supported, with one twist: a bare "*" means "any single letter" (\w) instead of
+ * the usual "0 or more of the previous token"; "\*" still matches a literal "*".
+ * Falls back to a literal (fully-escaped) match if the pattern is invalid, so a
+ * search string mid-edit (e.g. unbalanced parens) never throws.
+ */
+function _toRegexSource(s) {
+  return s
+    .replace(/\\\*/g, '\u0000')  // stash literal "\*"
+    .replace(/\*/g, '\\w')       // bare "*" → any single letter
+    .replace(/\u0000/g, '\\*');  // restore the literal
+}
+
+function _buildRegex(s) {
+  try { return new RegExp(_toRegexSource(s), 'i'); }
+  catch { return new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
+}
+
+/** Strip apostrophes so for the field being searched */
+function _stripApos(s) { return String(s).replace(/'/g, ''); }
+
+/**
+ * Filter a data array by a search query. The query (and each keyword function's
+ * argument) is interpreted as regex — see _buildRegex for the "*" exception.
+ * Supports keyword functions: pos(x), all(x), def(x).
+ * The closing paren is optional
+ * If the text before "("  * isn't a recognized function, the whole query is
+ * treated as a pattern itself.
  * Default: match the word string, starts-with first.
  *
  * @param {Array[]} data    - 2D array of entries
@@ -237,27 +577,28 @@ function filterEntries(data, query, hasPos) {
   const fnM = q.match(/^([a-z]+)\((.*?)\)?$/i);
   if (fnM) {
     const fn = fnM[1].toLowerCase();
-    const t  = fnM[2].toLowerCase();
-    if (fn === 'pos' && hasPos) return data.filter(e => e[1].toLowerCase().includes(t));
-    if (fn === 'all')          return data.filter(e => e.some(f => f.toLowerCase().includes(t)));
+    const re = _buildRegex(fnM[2]);
+    if (fn === 'pos' && hasPos) return data.filter(e => re.test(_stripApos(e[1])));
+    if (fn === 'all')          return data.filter(e => e.some(f => re.test(_stripApos(String(f)))));
     if (fn === 'def') {
       const idx = hasPos ? 2 : 1;
-      return data.filter(e => e[idx].toLowerCase().includes(t));
+      return data.filter(e => re.test(_stripApos(e[idx])));
     }
     // unrecognized function name → fall through to literal search
   }
 
-  // Default: match word string; starts-with has priority
-  const t = q.toLowerCase();
-  const starts = data.filter(e => e[0].toLowerCase().startsWith(t));
-  const rest = data.filter(e => !e[0].toLowerCase().startsWith(t) && e[0].toLowerCase().includes(t));
+  // Default: match word string (apostrophes ignored); starts-with has priority
+  const re = _buildRegex(q);
+  const startsAt0 = s => { const m = re.exec(_stripApos(s)); return !!m && m.index === 0; };
+  const starts = data.filter(e => startsAt0(e[0]));
+  const rest = data.filter(e => !startsAt0(e[0]) && re.test(_stripApos(e[0])));
   return [...starts, ...rest];
 }
 
 /* ── Inline SVG icons ── */
 
 /**
- * Serialize a 2D array (e.g. dict, roots) into a JS array literal.
+ * Serialize a 2D array (e.g. dict, affixes) into a JS array literal.
  * Each sub-array becomes one indented line.
  */
 function _ser2D(arr) {
@@ -276,14 +617,50 @@ function _ser1D(arr) {
 }
 
 /**
+ * Serialize the SECTIONS dataset. Each section is [headingText, itemsArray];
+ * an item is either a string (paragraph) or an array (a referenced word entry).
+ */
+function _serSections(arr) {
+  const secs = arr.map(([heading, items]) => {
+    const lines = (items || []).map(it =>
+      Array.isArray(it)
+        ? '    [' + it.map(s => JSON.stringify(s)).join(', ') + ']'
+        : '    ' + JSON.stringify(it)
+    ).join(',\n');
+    const body = lines ? `\n${lines},\n  ` : '';
+    return `  [${JSON.stringify(heading)}, [${body}]]`;
+  }).join(',\n');
+  return arr.length ? `[\n${secs},\n]` : '[]';
+}
+
+const MV_DATA_KEYS = [
+  'mv_dict', 'mv_dict_view',
+  'mv_affixes', 'mv_affixes_view',
+  'mv_grammar',
+  'mv_phonetics',
+  'mv_philosophy',
+  'mv_sections',
+  'mv_affixes_sections',
+  'mv_undo', 'mv_redo',
+];
+
+/** Wipe all locally-saved meuvid data so every page falls back to the shipped lang-data.js. */
+function resetMeuvidData() {
+  MV_DATA_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+  location.reload();
+}
+
+/**
  * Build a fresh lang-data.js from current localStorage state and trigger a download.
  */
 function exportDataJS() {
   const dict = load('mv_dict', DICT);
-  const roots = load('mv_roots', ROOTS);
+  const affixes = load('mv_affixes', AFFIXES);
   const grammar = load('mv_grammar', GRAMMAR);
   const phonetics = load('mv_phonetics', PHONETICS);
   const philosophy = load('mv_philosophy', PHILOSOPHY);
+  const sections = load('mv_sections', SECTIONS);
+  const affixesSections = load('mv_affixes_sections', AFFIXES_SECTIONS);
 
   const ts = new Date().toISOString();
 
@@ -295,13 +672,17 @@ function exportDataJS() {
 
 const DICT = ${_ser2D(dict)};
 
-const ROOTS = ${_ser2D(roots)};
+const AFFIXES = ${_ser2D(affixes)};
 
 const GRAMMAR = ${_ser1D(grammar)};
 
 const PHONETICS = ${_ser1D(phonetics)};
 
 const PHILOSOPHY = ${_ser1D(philosophy)};
+
+const SECTIONS = ${_serSections(sections)};
+
+const AFFIXES_SECTIONS = ${_serSections(affixesSections)};
 `;
 
   const blob = new Blob([content], { type: 'text/javascript' });
@@ -321,4 +702,29 @@ const SVG_QUESTION = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none
   <circle cx="12" cy="12" r="10"/>
   <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
   <circle cx="12" cy="17" r="0.6" fill="currentColor"/>
+</svg>`;
+
+/* list view — rows of lines */
+const SVG_LIST = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <line x1="8" y1="6" x2="20" y2="6"/>
+  <line x1="8" y1="12" x2="20" y2="12"/>
+  <line x1="8" y1="18" x2="20" y2="18"/>
+  <circle cx="4" cy="6" r="1"/>
+  <circle cx="4" cy="12" r="1"/>
+  <circle cx="4" cy="18" r="1"/>
+</svg>`;
+
+/* section view — a framed table with a frozen header row */
+const SVG_SECTION = `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"
+  xmlns="http://www.w3.org/2000/svg">
+  <path d="M6.25 3C4.45507 3 3 4.45507 3 6.25V17.75C3 19.5449 4.45507 21 6.25 21H17.75C19.5449 21 21 19.5449 21 17.75V6.25C21 4.45507 19.5449 3 17.75 3H6.25ZM4.5 6.25C4.5 5.2835 5.2835 4.5 6.25 4.5H17.75C18.7165 4.5 19.5 5.2835 19.5 6.25V8.5H4.5V6.25ZM10 10H14V14H10V10ZM8.5 10V14H4.5V10H8.5ZM8.5 15.5V19.5H6.25C5.2835 19.5 4.5 18.7165 4.5 17.75V15.5H8.5ZM10 19.5V15.5H14V19.5H10ZM15.5 14V10H19.5V14H15.5ZM15.5 15.5H19.5V17.75C19.5 18.7165 18.7165 19.5 17.75 19.5H15.5V15.5Z"/>
+</svg>`;
+
+/* drag handle — six-dot grip */
+const SVG_DRAG_HANDLE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+  xmlns="http://www.w3.org/2000/svg">
+  <circle cx="8" cy="5" r="1.8"/><circle cx="16" cy="5" r="1.8"/>
+  <circle cx="8" cy="12" r="1.8"/><circle cx="16" cy="12" r="1.8"/>
+  <circle cx="8" cy="19" r="1.8"/><circle cx="16" cy="19" r="1.8"/>
 </svg>`;

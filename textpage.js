@@ -23,6 +23,7 @@ function createTextPage(cfg) {
   /* ── page-local state ── */
   let data = load(dataKey, cfg.dataRaw);
   let _editSnapshot = null; // set when a para edit form opens; cleared on save/cancel/delete
+  let adder = null; // open insert panel: { pos, type } | null
 
   /* ── undo callback for this page ── */
   registerUndoCallback((dk, restored) => {
@@ -32,7 +33,8 @@ function createTextPage(cfg) {
   });
 
   /* ── HTML for a single paragraph ── */
-  function _paraHTML(para, idx) {
+  function _paraHTML(item, idx) {
+    const para = item.text;
     const isHead = para.startsWith('# ');
     const isEsc = !isHead && para[0] === '\\' && para[1] === '#' && para[2] === ' ';
 
@@ -50,75 +52,85 @@ function createTextPage(cfg) {
       <div class="edit-collapse para-edit-collapse" data-para-edit-form="${idx}">
         <div class="edit-collapse-inner">
           <div class="inline-edit">
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-              <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-                           color:var(--text-3)">type</span>
-              <select class="form-select"
-                style="width:auto;padding:4px 10px;font-size:14px"
-                data-para-type-sel="${idx}">
-                <option value="h1"${isHead ? ' selected' : ''}>heading</option>
-                <option value="p" ${!isHead ? ' selected' : ''}>paragraph</option>
-              </select>
+            <div class="view-toggle adder-toggle" style="margin-bottom:10px">
+              <button type="button" class="view-toggle-btn${!isHead ? ' active' : ''}" data-para-type="${idx}" data-val="p">paragraph</button>
+              <button type="button" class="view-toggle-btn${isHead ? ' active' : ''}" data-para-type="${idx}" data-val="h1">header</button>
             </div>
             <textarea class="form-textarea" data-para-ta="${idx}"
-              rows="4">${esc(displayVal)}</textarea>
+              rows="8">${esc(displayVal)}</textarea>
             <div class="form-actions">
               <button class="btn btn-primary btn-sm" data-para-save="${idx}">save</button>
               <button class="btn btn-sm"             data-para-cancel="${idx}">cancel</button>
-              <button class="btn btn-sm"             data-para-up="${idx}"   title="move up">↑</button>
-              <button class="btn btn-sm"             data-para-down="${idx}" title="move down">↓</button>
               <button class="btn btn-sm btn-danger"  data-para-del="${idx}">delete</button>
               <span style="flex:1"></span>
-              <button class="btn btn-sm btn-ghost" data-fmt-b="${idx}" title="Bold (Ctrl+B)"      style="font-weight:600">B</button>
-              <button class="btn btn-sm btn-ghost" data-fmt-i="${idx}" title="Italic (Ctrl+I)"    style="font-style:italic">I</button>
-              <button class="btn btn-sm btn-ghost" data-fmt-u="${idx}" title="Underline (Ctrl+U)" style="text-decoration:underline;text-underline-offset:2px">U</button>
+              <button class="btn btn-sm btn-ghost" data-fmt-b="${idx}" aria-label="Bold (Ctrl+B)"      data-tooltip="Bold (Ctrl+B)"      style="font-weight:600">B</button>
+              <button class="btn btn-sm btn-ghost" data-fmt-i="${idx}" aria-label="Italic (Ctrl+I)"    data-tooltip="Italic (Ctrl+I)"    style="font-style:italic">I</button>
+              <button class="btn btn-sm btn-ghost" data-fmt-u="${idx}" aria-label="Underline (Ctrl+U)" data-tooltip="Underline (Ctrl+U)" style="text-decoration:underline;text-underline-offset:2px">U</button>
             </div>
           </div>
         </div>
       </div>` : '';
 
     return `
-      <div class="para-block" data-para-idx="${idx}">
-        <div class="para-content">
-          <${tag}>${text.replace(/\n/g, '<br>')}</${tag}>
-          ${editBtn}
+      <div class="para-block" data-para-idx="${idx}" data-drag-key="${idx}">
+        <div class="para-content" data-para-id="${esc(item.id)}">
+          <${tag}>${withSnippets(text).replace(/\n/g, '<br>')}</${tag}>
+          ${AUTH.isLoggedIn() ? `<div class="para-gutter">${dragHandleHTML()}${editBtn}</div>` : ''}
         </div>
         ${editForm}
       </div>`;
   }
 
+  /* ── insertion gap + inline adder (mirrors dict-section.js) ── */
+
+  function _gapHTML(pos) {
+    if (!AUTH.isLoggedIn()) return '';
+    const active = adder && adder.pos === pos ? ' active' : '';
+    return `
+      <button class="sec-insert${active}" data-insert="${pos}" aria-label="add here" data-tooltip="add here">
+        <span class="sec-insert-line"></span>
+        <span class="sec-insert-plus">+</span>
+      </button>`;
+  }
+
+  function _adderHTML() {
+    const type = adder.type || 'p';
+    const tab = (t, label) =>
+      `<button class="view-toggle-btn${type === t ? ' active' : ''}" data-adder-type="${t}">${label}</button>`;
+    return `
+      <div class="sec-adder">
+        <div class="view-toggle adder-toggle">
+          ${tab('p', 'paragraph')}${tab('h1', 'header')}
+        </div>
+        <textarea class="form-textarea" id="adder-ta" rows="8"
+          placeholder="${type === 'h1' ? 'Heading text…' : 'Paragraph text…'}"></textarea>
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" id="adder-save">add</button>
+          <button class="btn btn-sm"             id="adder-cancel">cancel</button>
+        </div>
+      </div>`;
+  }
+
+  /* interleave insertion gaps (and the open adder, if any) between paragraphs */
+  function _parasHTML() {
+    if (!AUTH.isLoggedIn()) return data.map((p, i) => _paraHTML(p, i)).join('');
+    let html = '';
+    for (let pos = 0; pos <= data.length; pos++) {
+      html += _gapHTML(pos);
+      if (adder && adder.pos === pos) html += _adderHTML();
+      if (pos < data.length) html += _paraHTML(data[pos], pos);
+    }
+    return html;
+  }
+
   /* ── full page HTML ── */
   function _pageHTML() {
-    const paras = data.map((p, i) => _paraHTML(p, i)).join('');
-
     let editControls = '';
     if (AUTH.isLoggedIn()) {
       editControls = `
         <div class="section-actions">
           <button class="btn btn-sm" id="text-add-btn">+ add paragraph</button>
           <button class="btn btn-sm" id="text-raw-btn">raw edit</button>
-        </div>
-        <div class="edit-collapse" id="add-form-collapse">
-          <div class="edit-collapse-inner">
-            <div class="add-form">
-              <div class="add-form-title">New entry</div>
-              <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-                <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-                             color:var(--text-3)">type</span>
-                <select class="form-select"
-                  style="width:auto;padding:4px 10px;font-size:14px" id="new-para-type">
-                  <option value="p">paragraph</option>
-                  <option value="h1">heading</option>
-                </select>
-              </div>
-              <textarea class="form-textarea" id="new-para-ta" rows="4"
-                placeholder="Paragraph text…"></textarea>
-              <div class="form-actions">
-                <button class="btn btn-primary btn-sm" id="new-para-save">add</button>
-                <button class="btn btn-sm"             id="new-para-cancel">cancel</button>
-              </div>
-            </div>
-          </div>
         </div>
         <div class="edit-collapse" id="raw-form-collapse">
           <div class="edit-collapse-inner">
@@ -143,7 +155,7 @@ function createTextPage(cfg) {
           <h1 class="page-title">Meuvid</h1>
           ${editControls}
         </div>
-        <div class="text-body" id="text-body">${paras}</div>
+        <div class="text-body${AUTH.isLoggedIn() ? ' editing' : ''}" id="text-body">${_parasHTML()}</div>
       </main>`;
   }
 
@@ -153,50 +165,62 @@ function createTextPage(cfg) {
   function _refreshBody() {
     const el = document.getElementById('text-body');
     if (!el) return;
-    el.innerHTML = data.map((p, i) => _paraHTML(p, i)).join('');
+    el.innerHTML = _parasHTML();
     _bindParaEditEvents();
+    _bindAdderEvents();
+    initDragReorder(el, _dragMoveTo, key => _openParaEdit(parseInt(key)));
+    tagParaHideKeys(el);
+    applyHiding(el);
   }
 
-  /**
-   * After a move, re-open the edit form at newIdx and scroll the viewport so the form
-   * appears at the same screen position it occupied before the move.
-   * focusSel: CSS selector for the element to focus within the form (default: textarea).
-   */
-  function _reopenParaEdit(newIdx, oldFormTop, focusSel) {
-    const block = document.querySelector(`[data-para-idx="${newIdx}"]`);
-    const editForm = document.querySelector(`[data-para-edit-form="${newIdx}"]`);
-    if (!block || !editForm) return;
-    block.classList.add('editing');
-    editForm.classList.add('open');
-    if (oldFormTop !== null) {
-      const delta = editForm.getBoundingClientRect().top - oldFormTop;
-      window.scrollBy({ top: delta, behavior: 'instant' });
+  /** Move the paragraph at fromKey to just before toKey — same key format as
+      data-drag-key / the gap buttons' data-insert. */
+  function _dragMoveTo(fromKey, toKey) {
+    const from = parseInt(fromKey, 10);
+    let to = parseInt(toKey, 10);
+    if (Number.isNaN(from) || Number.isNaN(to) || to === from || to === from + 1) return;
+    const before = [...data];
+    const [item] = data.splice(from, 1);
+    if (to > from) to -= 1;
+    data.splice(to, 0, item);
+    save(dataKey, data);
+    pushUndo(dataKey, before, [...data]);
+    _refreshBody();
+  }
+
+  /* delete — commits pending moves along with the deletion as one undo entry */
+
+  /** Open the edit form for paragraph idx, closing any other one first. */
+  function _openParaEdit(idx) {
+    document.querySelectorAll('.para-block.editing').forEach(b => {
+      b.classList.remove('editing');
+      b.querySelector('.para-edit-collapse')?.classList.remove('open');
+    });
+    const block = document.querySelector(`[data-para-idx="${idx}"]`);
+    const editForm = document.querySelector(`[data-para-edit-form="${idx}"]`);
+    if (block && editForm) {
+      revealHidden(block);
+      block.classList.add('editing');
+      editForm.classList.add('open');
+      _editSnapshot = [...data];
+      setEscCleanup(() => { data = _editSnapshot; _editSnapshot = null; _refreshBody(); });
+      const ta = editForm.querySelector('.form-textarea');
+      if (ta) setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 20);
     }
-    const focusEl = editForm.querySelector(focusSel || '.form-textarea');
-    if (focusEl) setTimeout(() => focusEl.focus(), 20);
   }
 
   /** Bind per-paragraph open/cancel/save/move/delete. Called from _bindEvents and _refreshBody. */
   function _bindParaEditEvents() {
     /* open edit form — snapshot data so cancel/Escape can fully revert moves */
     document.querySelectorAll('[data-para-edit]').forEach(btn =>
+      btn.addEventListener('click', () => _openParaEdit(parseInt(btn.dataset.paraEdit)))
+    );
+
+    /* type toggle — DOM-only, matches the adder's tab pattern */
+    document.querySelectorAll('[data-para-type]').forEach(btn =>
       btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.paraEdit);
-        /* close any currently open para edit */
-        document.querySelectorAll('.para-block.editing').forEach(b => {
-          b.classList.remove('editing');
-          b.querySelector('.para-edit-collapse')?.classList.remove('open');
-        });
-        const block = document.querySelector(`[data-para-idx="${idx}"]`);
-        const editForm = document.querySelector(`[data-para-edit-form="${idx}"]`);
-        if (block && editForm) {
-          block.classList.add('editing');
-          editForm.classList.add('open');
-          _editSnapshot = [...data];
-          setEscCleanup(() => { data = _editSnapshot; _editSnapshot = null; _refreshBody(); });
-          const ta = editForm.querySelector('.form-textarea');
-          if (ta) setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 20);
-        }
+        document.querySelectorAll(`[data-para-type="${btn.dataset.paraType}"]`).forEach(b =>
+          b.classList.toggle('active', b === btn));
       })
     );
 
@@ -220,48 +244,24 @@ function createTextPage(cfg) {
     document.querySelectorAll('[data-para-save]').forEach(btn =>
       btn.addEventListener('click', () => {
         const i = parseInt(btn.dataset.paraSave);
-        const type = document.querySelector(`[data-para-type-sel="${i}"]`)?.value || 'p';
+        const type = document.querySelector(`[data-para-type="${i}"].active`)?.dataset.val || 'p';
         const text = (document.querySelector(`[data-para-ta="${i}"]`)?.value || '').trim();
         if (!text) return;
         const before = _editSnapshot ?? [...data];
-        data[i] = type === 'h1' ? '# ' + text : text;
+        data[i] = { text: type === 'h1' ? '# ' + text : text, id: data[i].id };
         save(dataKey, data);
         pushUndo(dataKey, before, [...data]);
         _editSnapshot = null;
         clearEscCleanup();
         _refreshBody();
-      })
-    );
-
-    /* move up — in-session only; not written to storage until save/delete */
-    document.querySelectorAll('[data-para-up]').forEach(btn =>
-      btn.addEventListener('click', () => {
-        const i = parseInt(btn.dataset.paraUp);
-        if (i <= 0) return;
-        const oldForm = document.querySelector(`[data-para-edit-form="${i}"]`);
-        const oldFormTop = oldForm ? oldForm.getBoundingClientRect().top : null;
-        [data[i], data[i - 1]] = [data[i - 1], data[i]];
-        _refreshBody();
-        _reopenParaEdit(i - 1, oldFormTop, '[data-para-up]');
-      })
-    );
-
-    /* move down — same, not committed until save/delete */
-    document.querySelectorAll('[data-para-down]').forEach(btn =>
-      btn.addEventListener('click', () => {
-        const i = parseInt(btn.dataset.paraDown);
-        if (i >= data.length - 1) return;
-        const oldForm = document.querySelector(`[data-para-edit-form="${i}"]`);
-        const oldFormTop = oldForm ? oldForm.getBoundingClientRect().top : null;
-        [data[i], data[i + 1]] = [data[i + 1], data[i]];
-        _refreshBody();
-        _reopenParaEdit(i + 1, oldFormTop, '[data-para-down]');
+        revealHidden(document.querySelector(`[data-para-idx="${i}"]`));
       })
     );
 
     /* delete — commits pending moves along with the deletion as one undo entry */
     document.querySelectorAll('[data-para-del]').forEach(btn =>
       btn.addEventListener('click', async e => {
+        revealHidden(document.querySelector(`[data-para-idx="${btn.dataset.paraDel}"]`));
         if (!await showConfirm('Delete this paragraph?', 'delete', e)) return;
         const i      = parseInt(btn.dataset.paraDel);
         const before = _editSnapshot ?? [...data];
@@ -306,33 +306,80 @@ function createTextPage(cfg) {
     });
   }
 
-  function _bindEvents() {
-    /* toggle add-form */
-    const addBtn = document.getElementById('text-add-btn');
-    if (addBtn) addBtn.addEventListener('click', () => {
-      const addCollapse = document.getElementById('add-form-collapse');
-      const rawCollapse = document.getElementById('raw-form-collapse');
+  /* open (or toggle closed) the insert adder at a gap; closes raw-edit if open */
+  function _openAdder(pos) {
+    if (adder && adder.pos === pos) { adder = null; }
+    else {
+      adder = { pos, type: 'p' };
+      document.getElementById('raw-form-collapse')?.classList.remove('open');
       const rawBtn = document.getElementById('text-raw-btn');
-      const isOpen = addCollapse?.classList.contains('open');
-      if (isOpen) {
-        addCollapse.classList.remove('open');
-        addBtn.textContent = '+ add paragraph';
-      } else {
-        addCollapse?.classList.add('open');
-        addBtn.textContent = 'cancel';
-        /* close raw if open */
-        rawCollapse?.classList.remove('open');
-        if (rawBtn) rawBtn.textContent = 'raw edit';
-        setTimeout(() => document.getElementById('new-para-ta')?.focus(), 20);
-      }
-    });
+      if (rawBtn) rawBtn.textContent = 'raw edit';
+    }
+    _refreshBody();
+  }
+
+  function _submitAdder() {
+    if (!adder) return;
+    const type = adder.type || 'p';
+    const text = (document.getElementById('adder-ta')?.value || '').trim();
+    if (!text) return;
+    const before = [...data];
+    data.splice(adder.pos, 0, { text: type === 'h1' ? '# ' + text : text, id: randId() });
+    save(dataKey, data);
+    pushUndo(dataKey, before, [...data]);
+    adder.pos += 1; // next add lands after this one
+    _refreshBody();
+  }
+
+  function _bindAdderEvents() {
+    document.querySelectorAll('[data-insert]').forEach(btn =>
+      btn.addEventListener('click', () => _openAdder(parseInt(btn.dataset.insert)))
+    );
+    if (!adder) return;
+
+    document.querySelectorAll('[data-adder-type]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        adder.type = btn.dataset.adderType;
+        document.querySelectorAll('[data-adder-type]').forEach(b =>
+          b.classList.toggle('active', b.dataset.adderType === adder.type));
+        const ta = document.getElementById('adder-ta');
+        if (ta) ta.placeholder = adder.type === 'h1' ? 'Heading text…' : 'Paragraph text…';
+      })
+    );
+
+    const ta = document.getElementById('adder-ta');
+    if (ta) {
+      ta.addEventListener('keydown', e => {
+        const ctrl = e.ctrlKey || e.metaKey;
+        if (ctrl && e.key === 'Enter') { e.preventDefault(); _submitAdder(); }
+        if (ctrl && e.key === 'b') { e.preventDefault(); wrapSelectedText(ta, '<b>', '</b>'); }
+        if (ctrl && e.key === 'i') { e.preventDefault(); wrapSelectedText(ta, '<i>', '</i>'); }
+        if (ctrl && e.key === 'u') { e.preventDefault(); wrapSelectedText(ta, '<u>', '</u>'); }
+      });
+      setTimeout(() => ta.focus(), 20);
+    }
+
+    document.getElementById('adder-save')?.addEventListener('click', _submitAdder);
+    document.getElementById('adder-cancel')?.addEventListener('click', () => { adder = null; _refreshBody(); });
+  }
+
+  /* Escape closes the adder; only acts while it's open. */
+  registerEscHandler(() => {
+    if (!adder) return false;
+    adder = null;
+    _refreshBody();
+    return true;
+  });
+
+  function _bindEvents() {
+    /* "+ add paragraph" → open the inline adder at the end */
+    const addBtn = document.getElementById('text-add-btn');
+    if (addBtn) addBtn.addEventListener('click', () => _openAdder(data.length));
 
     /* toggle raw-edit */
     const rawBtn = document.getElementById('text-raw-btn');
     if (rawBtn) rawBtn.addEventListener('click', () => {
       const rawCollapse = document.getElementById('raw-form-collapse');
-      const addCollapse = document.getElementById('add-form-collapse');
-      const addBtn = document.getElementById('text-add-btn');
       const isOpen = rawCollapse?.classList.contains('open');
       if (isOpen) {
         rawCollapse.classList.remove('open');
@@ -340,56 +387,14 @@ function createTextPage(cfg) {
       } else {
         /* populate textarea with current data before revealing */
         const rawTa = document.getElementById('raw-edit-ta');
-        if (rawTa) rawTa.value = data.join('\n\n');
+        if (rawTa) rawTa.value = data.map(p => p.text).join('\n\n');
         rawCollapse?.classList.add('open');
         rawBtn.textContent = 'close raw edit';
-        /* close add if open */
-        addCollapse?.classList.remove('open');
-        if (addBtn) addBtn.textContent = '+ add paragraph';
+        /* close the inline adder if open */
+        adder = null;
+        _refreshBody();
         setTimeout(() => document.getElementById('raw-edit-ta')?.focus(), 20);
       }
-    });
-
-    /* add-form: update placeholder when type changes (no re-render needed) */
-    const newType = document.getElementById('new-para-type');
-    if (newType) newType.addEventListener('change', e => {
-      const ta = document.getElementById('new-para-ta');
-      if (ta) ta.placeholder = e.target.value === 'h1' ? 'Heading text…' : 'Paragraph text…';
-    });
-
-    /* add-form: save */
-    const newSave = document.getElementById('new-para-save');
-    if (newSave) newSave.addEventListener('click', () => {
-      const type = document.getElementById('new-para-type')?.value || 'p';
-      const text = (document.getElementById('new-para-ta')?.value || '').trim();
-      if (!text) return;
-      const before = [...data];
-      data = [...data, type === 'h1' ? '# ' + text : text];
-      save(dataKey, data);
-      pushUndo(dataKey, before, [...data]);
-      /* keep the add form open for rapid entry — just clear and refocus */
-      const ta = document.getElementById('new-para-ta');
-      if (ta) ta.value = '';
-      _refreshBody();
-      setTimeout(() => document.getElementById('new-para-ta')?.focus(), 20);
-    });
-
-    /* add-form textarea: Ctrl+Enter to submit, Ctrl+B/I/U for formatting */
-    const newParaTa = document.getElementById('new-para-ta');
-    if (newParaTa) newParaTa.addEventListener('keydown', e => {
-      const ctrl = e.ctrlKey || e.metaKey;
-      if (ctrl && e.key === 'Enter') { e.preventDefault(); document.getElementById('new-para-save')?.click(); }
-      if (ctrl && e.key === 'b') { e.preventDefault(); wrapSelectedText(newParaTa, '<b>', '</b>'); }
-      if (ctrl && e.key === 'i') { e.preventDefault(); wrapSelectedText(newParaTa, '<i>', '</i>'); }
-      if (ctrl && e.key === 'u') { e.preventDefault(); wrapSelectedText(newParaTa, '<u>', '</u>'); }
-    });
-
-    /* add-form: cancel */
-    const newCancel = document.getElementById('new-para-cancel');
-    if (newCancel) newCancel.addEventListener('click', () => {
-      document.getElementById('add-form-collapse')?.classList.remove('open');
-      const addBtnEl = document.getElementById('text-add-btn');
-      if (addBtnEl) addBtnEl.textContent = '+ add paragraph';
     });
 
     /* raw-edit textarea: Ctrl+Enter to apply */
@@ -406,7 +411,11 @@ function createTextPage(cfg) {
     if (rawApply) rawApply.addEventListener('click', () => {
       const rawTa = document.getElementById('raw-edit-ta');
       const before = [...data];
-      data = (rawTa?.value || '').split('\n\n').map(s => s.trim()).filter(Boolean);
+      // Raw edit rewrites the whole page at once, so old paragraphs can't be
+      // reliably paired to new ones — every paragraph gets a fresh id here,
+      // which resets spoiler state on this page. Expected for a bulk rewrite.
+      data = (rawTa?.value || '').split('\n\n').map(s => s.trim()).filter(Boolean)
+        .map(text => ({ text, id: randId() }));
       save(dataKey, data);
       pushUndo(dataKey, before, [...data]);
       document.getElementById('raw-form-collapse')?.classList.remove('open');
@@ -424,12 +433,16 @@ function createTextPage(cfg) {
     });
 
     _bindParaEditEvents();
+    _bindAdderEvents();
   }
 
   /* ── public render ── */
   function render() {
     document.getElementById('app').innerHTML = _pageHTML();
     _bindEvents();
+    initDragReorder(document.getElementById('text-body'), _dragMoveTo, key => _openParaEdit(parseInt(key)));
+    tagParaHideKeys(document.getElementById('app'));
+    applyHiding(document.getElementById('app'));
   }
 
   return { render };

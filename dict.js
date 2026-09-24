@@ -1,34 +1,123 @@
 /* ================================================================
-   dict.js — dictionary and roots page (configurable)
+   dict.js — dictionary and affixes page (configurable)
    Depends on: data.js, utils.js, auth.js
    ================================================================ */
 
 /**
- * Create a dictionary/roots page.
+ * Create a dictionary/affixes page.
  *
  * @param {object} cfg
- * @param {boolean}  cfg.hasPos     - true for dictionary (has POS field), false for roots
+ * @param {boolean}  cfg.hasPos     - true for dictionary (has POS field), false for affixes
  * @param {string}   cfg.dataKey    - localStorage key, e.g. 'mv_dict'
  * @param {Array[]}  cfg.dataRaw    - fallback data array
- * @param {Array[]}  cfg.kwTable    - keywords table (DICT_KEYWORDS or ROOTS_KEYWORDS)
- * @param {string}   cfg.label      - singular label, e.g. 'word' or 'root'
- * @param {string}   cfg.noun       - plural label, e.g. 'words' or 'roots'
+ * @param {Array[]}  cfg.kwTable    - keywords table (DICT_KEYWORDS or AFFIXES_KEYWORDS)
+ * @param {string}   cfg.label      - singular label, e.g. 'word' or 'affix'
+ * @param {string}   cfg.noun       - plural label, e.g. 'words' or 'affixes'
  *
  * @returns {{ render: Function }}
  */
 function createDictPage(cfg) {
   const { hasPos, dataKey, dataRaw, kwTable, label, noun } = cfg;
+  const hasSections = !!cfg.hasSections;
+  const viewKey     = dataKey + '_view'; // 'list' | 'section'
+
+  /* An entry is [word, pos, def] (+ optional numeric id) for the dictionary, or
+     [word, def] (+ optional id) for affixes. The id is the trailing element and
+     exists only to disambiguate a word that appears more than once; the first
+     occurrence of a duplicated word stays id-less. */
+  const baseLen = hasPos ? 3 : 2; // entry length without an id
+  const idIdx   = baseLen;        // index the id occupies when present
+  const entryId = e => (e.length > baseLen ? e[idIdx] : null);
+
+  /* ignore prefix hyphens */
+  const _cmpEntries = (a, b) => a[0].replace(/^-/, '').localeCompare(b[0].replace(/^-/, ''));
 
   /* ── page-local state ── */
-  let data        = load(dataKey, dataRaw);
+  let data        = load(dataKey, dataRaw).sort(_cmpEntries);
   let query       = '';
   let showKwModal = false;
+  let viewMode    = hasSections ? load(viewKey, 'list') : 'list';
 
-  /* ── undo callback for this page ── */
+   /* ── section view module (dictionary/affixes) ── */
+  const sectionView = hasSections ? createDictSection({
+    sectionsKey: cfg.sectionsKey,
+    sectionsRaw: cfg.sectionsRaw,
+    hasPos,
+    getDict: () => data,
+    addDictEntry: _addDictEntry,
+    updateDictEntry: _updateEntryByRef,
+  }) : null;
+
+  _migrateDuplicateIds();
+
+  /* Smallest unused id, considering both the dictionary and any id still held by
+     a section reference, so a dangling reference's id is never reassigned. */
+  function _nextId() {
+    let mx = 0;
+    data.forEach(e => { const id = entryId(e); if (id != null && id > mx) mx = id; });
+    (sectionView?.collectRefIds() || []).forEach(id => { if (id > mx) mx = id; });
+    return mx + 1;
+  }
+
+  /* Assign ids to duplicate entries that lack one (keeping the first occurrence
+     id-less), e.g. for seed data that predates this scheme. Runs once on load. */
+  function _migrateDuplicateIds() {
+    const seen = new Set();
+    let changed = false;
+    data.forEach(e => {
+      if (entryId(e) != null) return;
+      if (seen.has(e[0])) { e.push(_nextId()); changed = true; }
+      else seen.add(e[0]);
+    });
+    if (changed) save(dataKey, data);
+  }
+
+  /* Build a storable entry from a [word, …] tuple, attaching an id when the word
+     already exists (so the addition is a duplicate). Returns the entry. */
+  function _entryWithId(tuple) {
+    return data.some(e => e[0] === tuple[0]) ? [...tuple, _nextId()] : [...tuple];
+  }
+
+  /* Add a word on behalf of the section view; returns the reference to store. */
+  function _addDictEntry(tuple) {
+    const before = JSON.parse(JSON.stringify(data));
+    const entry  = _entryWithId(tuple);
+    data = [...data, entry].sort(_cmpEntries);
+    save(dataKey, data);
+    pushUndo(dataKey, before, JSON.parse(JSON.stringify(data)));
+    if (viewMode === 'list') _refreshList();
+    const id = entryId(entry);
+    return id != null ? [entry[0], id] : [entry[0]];
+  }
+
+  /* Edit a word on behalf of the section view, identified by its current word/id
+     (not index, since the section view has no index into the dictionary array).
+     Ripples the rename to every section reference. Returns the new reference,
+     or null if no matching entry was found. */
+  function _updateEntryByRef(oldWord, oldId, word, pos, def) {
+    const idx = data.findIndex(e => e[0] === oldWord && entryId(e) === oldId);
+    if (idx === -1) return null;
+    const before = JSON.parse(JSON.stringify(data));
+    const newEntry = hasPos ? [word, pos, def] : [word, def];
+    if (oldId != null) newEntry.push(oldId);
+    else if (data.some((e, i) => i !== idx && e[0] === word && entryId(e) == null)) {
+      newEntry.push(_nextId()); // a rename turned this into a duplicate
+    }
+    data[idx] = newEntry;
+    data.sort(_cmpEntries);
+    save(dataKey, data);
+    pushUndo(dataKey, before, JSON.parse(JSON.stringify(data)));
+    const newId = entryId(newEntry);
+    if (oldWord !== word || oldId !== newId) sectionView?.updateRef(oldWord, oldId, word, newId);
+    if (viewMode === 'list') _refreshList();
+    revealHidden(document.querySelector(`[data-entry-idx="${idx}"]`)); // stays visible past the rebuild
+    return newId != null ? [newEntry[0], newId] : [newEntry[0]];
+  }
+
+  /* ── undo callback for this page (handles both datasets) ── */
   registerUndoCallback((dk, restored) => {
-    if (dk !== dataKey) return;
-    data = restored;
-    _refreshList();
+    if (dk === dataKey) { data = restored; _refreshList(); return; }
+    sectionView?.handleUndo(dk, restored);
   });
 
   /* ── HTML builders ── */
@@ -46,7 +135,9 @@ function createDictPage(cfg) {
           </div>
           <p class="kw-intro">
             Use these keywords to refine your search. Without any keyword, the default is
-            to match the word string itself, prioritizing entries that begin with your query.
+            to match the word string itself, prioritizing entries that begin with your query.</br>
+            The search bar accepts regex, but <code>*</code> means "any letter" (use
+            <code>\\*</code> for a literal asterisk).
           </p>
           <table class="kw-table">
             <thead><tr><th>keyword</th><th>description</th></tr></thead>
@@ -85,11 +176,13 @@ function createDictPage(cfg) {
         </div>
       </div>` : '';
 
+    const wKey = esc(hideKeyForEntry(entry[0], entryId(entry), 'word'));
+    const dKey = esc(hideKeyForEntry(entry[0], entryId(entry), 'def'));
     return `
       <div class="dict-entry-wrapper" data-entry-idx="${realIdx}">
         <div class="dict-entry">
-          <span class="dict-word">${esc(entry[0])}</span>
-          <span class="dict-body">${posSpan}${esc(entry[hasPos ? 2 : 1])}</span>
+          <span class="dict-word" data-hide-key="${wKey}">${esc(entry[0])}</span>
+          <span class="dict-body" data-hide-key="${dKey}">${posSpan}${withSnippets(esc(entry[hasPos ? 2 : 1]))}</span>
           ${actions}
         </div>
         ${editForm}
@@ -133,25 +226,44 @@ function createDictPage(cfg) {
     return filtered.map(e => _entryHTML(e, data.indexOf(e))).join('');
   }
 
-  function _pageHTML() {
+  /* segmented list/section toggle (dictionary only) */
+  function _toggleHTML() {
+    if (!hasSections) return '';
+    const on = m => viewMode === m ? ' active' : '';
+    return `
+      <div class="view-toggle" role="tablist" aria-label="view mode">
+        <button class="view-toggle-btn${on('list')}" data-view="list" role="tab"
+          aria-selected="${viewMode === 'list'}">${SVG_LIST}<span>list</span></button>
+        <button class="view-toggle-btn${on('section')}" data-view="section" role="tab"
+          aria-selected="${viewMode === 'section'}">${SVG_SECTION}<span>section</span></button>
+      </div>`;
+  }
+
+  /* list-mode body: search bar, add controls, entry list */
+  function _listModeHTML() {
     const addControls = AUTH.isLoggedIn() ? `
       <button class="btn btn-sm" id="dict-add-btn">+ add ${label}</button>
       ${_addFormHTML()}` : '';
+    return `
+      <div class="search-row">
+        <input class="search-input" id="search-input" type="text"
+          placeholder="search…" value="${esc(query)}"
+          autocomplete="off" spellcheck="false" />
+        <button class="search-help" id="search-help-btn"
+          aria-label="Search keywords" data-tooltip="Search keywords">${SVG_QUESTION}</button>
+      </div>
+      ${addControls}
+      <div id="entry-list">${_listHTML()}</div>`;
+  }
 
+  function _pageHTML() {
     return `
       <main class="page">
         <div class="page-header">
           <h1 class="page-title">Meuvid</h1>
-          <div class="search-row">
-            <input class="search-input" id="search-input" type="text"
-              placeholder="search…" value="${esc(query)}"
-              autocomplete="off" spellcheck="false" />
-            <button class="search-help" id="search-help-btn"
-              title="Search keywords">${SVG_QUESTION}</button>
-          </div>
-          ${addControls}
+          ${_toggleHTML()}
         </div>
-        <div id="entry-list">${_listHTML()}</div>
+        <div id="dict-content"></div>
       </main>`;
   }
 
@@ -170,6 +282,7 @@ function createDictPage(cfg) {
         const wrapper  = document.querySelector(`[data-entry-idx="${idx}"]`);
         const editForm = document.querySelector(`[data-edit-form="${idx}"]`);
         if (wrapper && editForm) {
+          revealHidden(wrapper);
           wrapper.classList.add('editing');
           editForm.classList.add('open');
           /* focus first input after visibility transition clears (see CSS 0s delay) */
@@ -198,11 +311,7 @@ function createDictPage(cfg) {
         const pos  = (document.querySelector(`[data-edit-pos="${idx}"]`)?.value  || '').trim();
         const def  = (document.querySelector(`[data-edit-def="${idx}"]`)?.value  || '').trim();
         if (!word || !def) return;
-        const before = JSON.parse(JSON.stringify(data));
-        data[idx] = hasPos ? [word, pos, def] : [word, def];
-        save(dataKey, data);
-        pushUndo(dataKey, before, JSON.parse(JSON.stringify(data)));
-        _refreshList();
+        _updateEntryByRef(data[idx][0], entryId(data[idx]), word, pos, def);
       })
     );
 
@@ -220,6 +329,7 @@ function createDictPage(cfg) {
       btn.addEventListener('click', async e => {
         const idx  = parseInt(btn.dataset.delete);
         const word = data[idx]?.[0] || '';
+        revealHidden(document.querySelector(`[data-entry-idx="${idx}"]`));
         if (!await showConfirm(`Delete "${word}"?`, 'delete', e)) return;
         const before = JSON.parse(JSON.stringify(data));
         data = data.filter((_, i) => i !== idx);
@@ -230,7 +340,42 @@ function createDictPage(cfg) {
     );
   }
 
-  function _bindPageEvents() {
+  /* toggle between list and section views */
+  function _bindToggleEvents() {
+    document.querySelectorAll('.view-toggle-btn').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.view;
+        if (mode === viewMode) return;
+        viewMode = mode;
+        save(viewKey, viewMode);
+        document.querySelectorAll('.view-toggle-btn').forEach(b => {
+          const on = b.dataset.view === viewMode;
+          b.classList.toggle('active', on);
+          b.setAttribute('aria-selected', on);
+        });
+        _renderContent();
+      })
+    );
+  }
+
+  /* render the active view into #dict-content */
+  function _renderContent() {
+    const c = document.getElementById('dict-content');
+    if (!c) return;
+    if (viewMode === 'section' && sectionView) {
+      // pick up edits made elsewhere (e.g. another tab) since page load
+      data = load(dataKey, dataRaw).sort(_cmpEntries);
+      sectionView.render(c); // applies hiding itself
+      return;
+    }
+    c.innerHTML = _listModeHTML();
+    _bindListModeEvents();
+    applyHiding(c);
+    const si = document.getElementById('search-input');
+    if (si) { const l = si.value.length; si.focus(); si.setSelectionRange(l, l); }
+  }
+
+  function _bindListModeEvents() {
     /* search — debounced so the list isn't rebuilt on every keystroke */
     const si = document.getElementById('search-input');
     if (si) {
@@ -256,12 +401,14 @@ function createDictPage(cfg) {
       const collapse = document.getElementById('add-form-collapse');
       collapse?.classList.add('open');
       const first = collapse?.querySelector('.form-input');
+      addBtn.style.display = 'none';
       if (first) setTimeout(() => first.focus(), 20);
     });
 
     const addCancel = document.getElementById('add-cancel-btn');
     if (addCancel) addCancel.addEventListener('click', () => {
       document.getElementById('add-form-collapse')?.classList.remove('open');
+      if (addBtn) addBtn.style.display = '';
     });
 
     const addSave = document.getElementById('add-save-btn');
@@ -271,8 +418,8 @@ function createDictPage(cfg) {
       const def  = (document.getElementById('add-def')?.value  || '').trim();
       if (!word || !def) return;
       const before = JSON.parse(JSON.stringify(data));
-      data = [...data, hasPos ? [word, pos, def] : [word, def]]
-               .sort((a, b) => a[0].localeCompare(b[0]));
+      data = [...data, _entryWithId(hasPos ? [word, pos, def] : [word, def])]
+               .sort(_cmpEntries);
       save(dataKey, data);
       pushUndo(dataKey, before, JSON.parse(JSON.stringify(data)));
       /* clear inputs and refocus for the next entry — form stays open */
@@ -313,15 +460,14 @@ function createDictPage(cfg) {
     if (!el) return;
     el.innerHTML = _listHTML();
     _bindListEvents();
+    applyHiding(el);
   }
 
   /* ── public render ── */
   function render() {
     document.getElementById('app').innerHTML = _pageHTML();
-    _bindPageEvents();
-    // Restore search focus
-    const si = document.getElementById('search-input');
-    if (si) { const l = si.value.length; si.focus(); si.setSelectionRange(l, l); }
+    _bindToggleEvents();
+    _renderContent();
   }
 
   return { render };

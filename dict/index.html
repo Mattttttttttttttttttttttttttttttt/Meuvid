@@ -5,7 +5,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meuvid — Dictionary</title>
+  <meta name="description" content="Meuvid dictionary with definitions and themed sections">
+  <meta name="author" content="Matt Mao">
+  <link rel="canonical" href="https://matt-meow.web.app/meuvid/dict/">
+  <meta property="og:title" content="Meuvid — Dictionary">
+  <meta property="og:description" content="Meuvid dictionary with definitions and themed sections">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://matt-meow.web.app/meuvid/dict/">
+  <meta property="og:site_name" content="matt meow&#39;s corner">
+  <meta property="og:image" content="https://matt-meow.web.app/meuvid/icons/meuvid-512.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Meuvid — Dictionary">
+  <meta name="twitter:description" content="Meuvid dictionary with definitions and themed sections">
+  <meta name="twitter:image" content="https://matt-meow.web.app/meuvid/icons/meuvid-512.png">
   <link rel="stylesheet" href="../style.css">
+  <link rel="icon" type="image/svg+xml" href="../icons/meuvid.svg">
 </head>
 
 <body>
@@ -18,6 +32,7 @@
   <script src="../utils.js"></script>
   <script src="../auth.js"></script>
   <script src="../nav.js"></script>
+  <script src="../dict-section.js"></script>
   <script src="../dict.js"></script>
   <script>
     const page = createDictPage({
@@ -27,6 +42,9 @@
       kwTable: DICT_KEYWORDS,
       label: 'word',
       noun: 'words',
+      hasSections: true,
+      sectionsKey: 'mv_sections',
+      sectionsRaw: SECTIONS,
     });
 
     function render() {

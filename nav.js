@@ -89,7 +89,8 @@ function initNav(currentPage, onLoginClick, onLogout) {
      Rendered into both the desktop top bar and the mobile menu; bound by class
      so the same handlers apply wherever the buttons are visible. ── */
   const authBtn = loggedIn
-    ? `<button class="btn btn-sm btn-ghost js-export">export data</button>
+    ? `<button class="btn btn-sm btn-danger js-refresh">refresh</button>
+       <button class="btn btn-sm btn-ghost js-export">export</button>
        <button class="btn btn-sm js-logout">log out</button>`
     : `<button class="btn btn-sm js-login">log in</button>`;
 
@@ -100,4 +101,7 @@ function initNav(currentPage, onLoginClick, onLogout) {
   container.querySelectorAll('.js-login').forEach(b => b.addEventListener('click', onLoginClick));
   container.querySelectorAll('.js-logout').forEach(b => b.addEventListener('click', onLogout));
   container.querySelectorAll('.js-export').forEach(b => b.addEventListener('click', exportDataJS));
+  container.querySelectorAll('.js-refresh').forEach(b => b.addEventListener('click', async e => {
+    if (await showConfirm('Wipe all local changes and reset to the default data?', 'refresh', e)) resetMeuvidData();
+  }));
 }

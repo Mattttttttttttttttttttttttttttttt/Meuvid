@@ -13,8 +13,8 @@ const DICT_KEYWORDS = [
   ["def(x)", "Match definitions."],
 ];
 
-const ROOTS_KEYWORDS = [
-  ["all(x)", "Match x across all fields: the root itself and its definition."],
+const AFFIXES_KEYWORDS = [
+  ["all(x)", "Match x across all fields: the affix itself and its definition."],
   ["def(x)", "Match definitions."],
 ];
 
@@ -22,7 +22,7 @@ const ROOTS_KEYWORDS = [
 const NAV_ITEMS = [
   { id: 'dict', label: 'dictionary', href: 'dict' },
   { id: 'grammar', label: 'grammar', href: 'grammar' },
-  { id: 'roots', label: 'roots', href: 'roots' },
+  { id: 'affixes', label: 'affixes', href: 'affixes' },
   { id: 'phonetics', label: 'phonetics', href: 'phonetics' },
   { id: 'philosophy', label: 'philosophy…', href: 'philosophy' },
 ];
@@ -30,7 +30,7 @@ const NAV_ITEMS = [
 const HOME_CARDS = [
   { id: 'dict', title: 'Dictionary', href: 'dict', desc: 'Meuvid words and definitions' },
   { id: 'grammar', title: 'Grammar', href: 'grammar', desc: 'the grammar and discourse markers' },
-  { id: 'roots', title: 'Roots', href: 'roots', desc: 'build words from roots' },
+  { id: 'affixes', title: 'Affixes', href: 'affixes', desc: 'build words from affixes' },
   { id: 'phonetics', title: 'Phonetics', href: 'phonetics', desc: 'Meuvid\'s easy pronunciation rules' },
   { id: 'philosophy', title: 'Philosophy', href: 'philosophy', desc: 'communication guidelines and more' },
 ];
