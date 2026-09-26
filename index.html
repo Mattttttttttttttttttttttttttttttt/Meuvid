@@ -27,13 +27,13 @@
   <div id="modal-container"></div>
   <div id="app"></div>
 
-  <script src="data.js"></script>
-  <script src="lang-data.js"></script>
-  <script src="utils.js"></script>
-  <script src="auth.js"></script>
-  <script src="nav.js"></script>
-  <script src="home.js"></script>
-  <script>
+  <script type="module">
+    import { load } from './utils.js';
+    import { AUTH } from './auth.js';
+    import { initNav } from './nav.js';
+    import { renderHome } from './home.js';
+    import { DICT, AFFIXES } from './lang-data.js';
+
     function render() {
       initNav(
         'home',

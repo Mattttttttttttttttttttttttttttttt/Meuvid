@@ -1,6 +1,5 @@
 /* ================================================================
    dict-section.js — section view for the dictionary and affixes pages
-   Depends on: utils.js, auth.js, lang-data.js
 
    Data model (localStorage key cfg.sectionsKey, fallback cfg.sectionsRaw):
      [ [headingText, items], ... ]
@@ -13,6 +12,13 @@
    Reordering an item moves it one slot, crossing into the neighbouring
    section at a section edge.
    ================================================================ */
+
+import {
+  esc, withSnippets, load, save, pushUndo, wrapSelectedText, showConfirm,
+  hideKeyForEntry, randId, tagParaHideKeys, applyHiding, revealHidden,
+  dragHandleHTML, initDragReorder, registerEscHandler, filterEntries,
+} from './utils.js';
+import { AUTH } from './auth.js';
 
 /**
  * @param {object}   cfg
@@ -27,7 +33,7 @@
  *                                      (persist + undo) and returns its new reference
  * @returns {{ render, handleUndo, collectRefIds }}
  */
-function createDictSection(cfg) {
+export function createDictSection(cfg) {
   const { sectionsKey, sectionsRaw, hasPos, getDict, addDictEntry, updateDictEntry } = cfg;
   const baseLen = hasPos ? 3 : 2;       // source entry length without an id
   const idIdx   = baseLen;              // index the id occupies when present

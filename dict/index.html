@@ -27,14 +27,13 @@
   <div id="modal-container"></div>
   <div id="app"></div>
 
-  <script src="../data.js"></script>
-  <script src="../lang-data.js"></script>
-  <script src="../utils.js"></script>
-  <script src="../auth.js"></script>
-  <script src="../nav.js"></script>
-  <script src="../dict-section.js"></script>
-  <script src="../dict.js"></script>
-  <script>
+  <script type="module">
+    import { AUTH } from '../auth.js';
+    import { initNav } from '../nav.js';
+    import { createDictPage } from '../dict.js';
+    import { DICT_KEYWORDS } from '../data.js';
+    import { DICT, SECTIONS } from '../lang-data.js';
+
     const page = createDictPage({
       hasPos: true,
       dataKey: 'mv_dict',

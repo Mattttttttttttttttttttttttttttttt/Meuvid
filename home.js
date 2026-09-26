@@ -1,9 +1,11 @@
 /* ================================================================
    home.js — home page rendering
-   Depends on: data.js, utils.js
    ================================================================ */
 
-function renderHome(dict, affixes) {
+import { HOME_CARDS } from './data.js';
+import { esc, SVG_CHEVRON } from './utils.js';
+
+export function renderHome(dict, affixes) {
   const cards = HOME_CARDS.map(c => {
     const meta =
       c.id === 'dict'  ? `${dict.length} word${dict.length !== 1 ? 's' : ''}` :

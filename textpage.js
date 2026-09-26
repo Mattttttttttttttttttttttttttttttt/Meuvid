@@ -1,7 +1,13 @@
 /* ================================================================
    textpage.js — grammar / phonetics / philosophy pages (configurable)
-   Depends on: utils.js, auth.js
    ================================================================ */
+
+import {
+  esc, withSnippets, load, save, registerUndoCallback, pushUndo, wrapSelectedText,
+  showConfirm, randId, tagParaHideKeys, applyHiding, revealHidden,
+  dragHandleHTML, initDragReorder, setEscCleanup, clearEscCleanup, registerEscHandler,
+} from './utils.js';
+import { AUTH } from './auth.js';
 
 /**
  * Create a text-content page.
@@ -17,7 +23,7 @@
  *
  * @returns {{ render: Function }}
  */
-function createTextPage(cfg) {
+export function createTextPage(cfg) {
   const { dataKey } = cfg;
 
   /* ── page-local state ── */

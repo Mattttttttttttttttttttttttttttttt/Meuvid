@@ -2,8 +2,11 @@
    utils.js — shared utility functions and SVG icons
    ================================================================ */
 
+import { DICT, AFFIXES, GRAMMAR, PHONETICS, PHILOSOPHY, SECTIONS, AFFIXES_SECTIONS } from './lang-data.js';
+import { AUTH } from './auth.js';
+
 /** Escape a string for safe HTML attribute / text insertion. */
-function esc(s) {
+export function esc(s) {
   return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -12,12 +15,12 @@ function esc(s) {
 }
 
 /** Wrap `backtick` regions in a distinct-font span, for in-language snippets. */
-function withSnippets(s) {
+export function withSnippets(s) {
   return String(s).replace(/`([^`\n]+)`/g, '<span class="lang-snippet">$1</span>');
 }
 
 /** Load a value from localStorage, falling back to defaultValue. */
-function load(key, defaultValue) {
+export function load(key, defaultValue) {
   try {
     const v = localStorage.getItem(key);
     return v ? JSON.parse(v) : defaultValue;
@@ -27,7 +30,7 @@ function load(key, defaultValue) {
 }
 
 /** Save a value to localStorage as JSON. */
-function save(key, val) {
+export function save(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* quota exceeded etc. */ }
 }
 
@@ -40,7 +43,7 @@ function _saveStack(k, a) { try { localStorage.setItem(k, JSON.stringify(a)); } 
 
 let _undoRestoreCallback = null;
 /** Register the current page's restore handler; replaces the previous one on navigation. */
-function registerUndoCallback(cb) { _undoRestoreCallback = cb; }
+export function registerUndoCallback(cb) { _undoRestoreCallback = cb; }
 
 /**
  * Push a reversible data change onto the undo stack.
@@ -48,7 +51,7 @@ function registerUndoCallback(cb) { _undoRestoreCallback = cb; }
  * @param {*} before  deep-cloned snapshot BEFORE the change
  * @param {*} after   deep-cloned snapshot AFTER the change
  */
-function pushUndo(dataKey, before, after) {
+export function pushUndo(dataKey, before, after) {
   const stack = _loadStack('mv_undo');
   stack.push({ dataKey, before, after });
   if (stack.length > _MAX_HISTORY) stack.shift();
@@ -80,7 +83,7 @@ function redoAction() {
  * Wrap the textarea's current selection in open/close tags.
  * If nothing is selected, insert the tags and place the cursor between them.
  */
-function wrapSelectedText(ta, open, close) {
+export function wrapSelectedText(ta, open, close) {
   const s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
   if (s === e) {
     ta.value = v.slice(0, s) + open + close + v.slice(s);
@@ -112,7 +115,7 @@ window.addEventListener('blur', () => { _shiftHeld = false; });
  * @param {string} [confirmLabel='confirm']
  * @param {Event}  [event] originating event; if shiftKey is held, skip the dialog
  */
-function showConfirm(message, confirmLabel = 'confirm', event = null) {
+export function showConfirm(message, confirmLabel = 'confirm', event = null) {
   if ((event && event.shiftKey) || _shiftHeld) return Promise.resolve(true);
   return new Promise(resolve => {
     // Clear any lingering text selection so the modal doesn't render highlighted.
@@ -165,16 +168,16 @@ function _hideExceptions(kind) { return kind === 'word' ? _wordExceptions : _def
 function _isCovered(key, kind) { return _hideBaseline(kind) !== _hideExceptions(kind).has(key); }
 
 /** Stable key for a dict entry/reference, so hidden state survives reordering and re-renders. */
-function hideKeyForEntry(word, id, field) { return `w:${word}::${id ?? ''}::${field}`; }
+export function hideKeyForEntry(word, id, field) { return `w:${word}::${id ?? ''}::${field}`; }
 
 /** Random id for a new paragraph item ({ text, id }), kept for its lifetime so its
     hide-key (see tagParaHideKeys) survives inserts/deletes/reorders elsewhere. */
-function randId() { return Math.random().toString(36).slice(2, 10); }
+export function randId() { return Math.random().toString(36).slice(2, 10); }
 
 /** Assign each <g>/<h> tag inside .para-content under root a stable key, tied to
     the paragraph's own persistent id (data-para-id, set from the item's { id }).
     Call after inserting any new paragraph markup, before applyHiding(). */
-function tagParaHideKeys(root) {
+export function tagParaHideKeys(root) {
   (root || document).querySelectorAll('.para-content[data-para-id]').forEach(pc => {
     const blockId = pc.dataset.paraId;
     const counts = {};
@@ -196,7 +199,7 @@ function _syncHideEl(el) {
     (the whole document if omitted). Call after any render that might contain
     dict-word/dict-body spans or <g>/<h> tags. Each element is synced in its
     own try/catch so one bad node can't abort the rest of the pass. */
-function applyHiding(root) {
+export function applyHiding(root) {
   (root || document).querySelectorAll('[data-hide-key]').forEach(el => {
     try { _syncHideEl(el); } catch (err) { console.error('applyHiding failed for', el, err); }
   });
@@ -209,7 +212,7 @@ function toggleHideDefs()  { _hideDefs  = !_hideDefs;  _defExceptions.clear();  
     the baseline. Call this right before an edit form opens, an item moves, or
     its delete confirmation shows, so the user isn't acting on text they can't
     read. */
-function revealHidden(el) {
+export function revealHidden(el) {
   if (!el) return;
   const nodes = el.matches?.('[data-hide-key]')
     ? [el, ...el.querySelectorAll('[data-hide-key]')]
@@ -266,7 +269,7 @@ document.addEventListener('click', e => {
    onDrop(fromKey, toKey) fires once, on release, with the source's key and
    the target gap's key; it owns the actual data mutation + commit + render.
    ================================================================ */
-function dragHandleHTML() {
+export function dragHandleHTML() {
   return `<button type="button" class="drag-handle" tabindex="-1" aria-label="drag to reorder" data-tooltip="drag to reorder">${SVG_DRAG_HANDLE}</button>`;
 }
 
@@ -276,7 +279,7 @@ const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_DIST = 30;
 const DRAG_MOVE_THRESHOLD = 10;
 
-function initDragReorder(container, onDrop, onEdit) {
+export function initDragReorder(container, onDrop, onEdit) {
   if (!container) return;
 
   container.querySelectorAll('.drag-handle').forEach(handle => {
@@ -451,21 +454,21 @@ function _dragCleanup() {
  * revert in-memory moves and restore data, not just toggle CSS classes.
  */
 let _escCleanup = null;
-function setEscCleanup(fn) { _escCleanup = fn; }
-function clearEscCleanup() { _escCleanup = null; }
+export function setEscCleanup(fn) { _escCleanup = fn; }
+export function clearEscCleanup() { _escCleanup = null; }
 
 /*
  * _escHandler: registered by a page (e.g. the section view) to close its own
  * transient UI on Escape. Returns true when it handled the key.
  */
 let _escHandler = null;
-function registerEscHandler(fn) { _escHandler = fn; }
+export function registerEscHandler(fn) { _escHandler = fn; }
 
 /**
  * Register site-wide keyboard shortcuts once per page load.
  * Called by initNav on its first render so AUTH is guaranteed to be defined.
  */
-function initGlobalShortcuts() {
+export function initGlobalShortcuts() {
   document.addEventListener('keydown', e => {
     const ctrl   = e.ctrlKey || e.metaKey;
     const active = document.activeElement;
@@ -474,7 +477,7 @@ function initGlobalShortcuts() {
     // Ctrl+S → export data (logged-in only)
     if (ctrl && e.key === 's') {
       e.preventDefault();
-      if (typeof AUTH !== 'undefined' && AUTH.isLoggedIn()) exportDataJS();
+      if (AUTH.isLoggedIn()) exportDataJS();
       return;
     }
 
@@ -569,7 +572,7 @@ function _stripApos(s) { return String(s).replace(/'/g, ''); }
  * @param {string}  query   - raw search string
  * @param {boolean} hasPos  - whether the data has a POS field (index 1)
  */
-function filterEntries(data, query, hasPos) {
+export function filterEntries(data, query, hasPos) {
   if (!query.trim()) return data;
   const q = query.trim();
 
@@ -645,7 +648,7 @@ const MV_DATA_KEYS = [
 ];
 
 /** Wipe all locally-saved meuvid data so every page falls back to the shipped lang-data.js. */
-function resetMeuvidData() {
+export function resetMeuvidData() {
   MV_DATA_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
   location.reload();
 }
@@ -653,7 +656,7 @@ function resetMeuvidData() {
 /**
  * Build a fresh lang-data.js from current localStorage state and trigger a download.
  */
-function exportDataJS() {
+export function exportDataJS() {
   const dict = load('mv_dict', DICT);
   const affixes = load('mv_affixes', AFFIXES);
   const grammar = load('mv_grammar', GRAMMAR);
@@ -670,19 +673,19 @@ function exportDataJS() {
    Last updated: ${ts}
    ================================================================ */
 
-const DICT = ${_ser2D(dict)};
+export const DICT = ${_ser2D(dict)};
 
-const AFFIXES = ${_ser2D(affixes)};
+export const AFFIXES = ${_ser2D(affixes)};
 
-const GRAMMAR = ${_ser1D(grammar)};
+export const GRAMMAR = ${_ser1D(grammar)};
 
-const PHONETICS = ${_ser1D(phonetics)};
+export const PHONETICS = ${_ser1D(phonetics)};
 
-const PHILOSOPHY = ${_ser1D(philosophy)};
+export const PHILOSOPHY = ${_ser1D(philosophy)};
 
-const SECTIONS = ${_serSections(sections)};
+export const SECTIONS = ${_serSections(sections)};
 
-const AFFIXES_SECTIONS = ${_serSections(affixesSections)};
+export const AFFIXES_SECTIONS = ${_serSections(affixesSections)};
 `;
 
   const blob = new Blob([content], { type: 'text/javascript' });
@@ -692,12 +695,12 @@ const AFFIXES_SECTIONS = ${_serSections(affixesSections)};
   URL.revokeObjectURL(url);
 }
 
-const SVG_CHEVRON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+export const SVG_CHEVRON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"
   stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
   <polyline points="9 18 15 12 9 6"/>
 </svg>`;
 
-const SVG_QUESTION = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+export const SVG_QUESTION = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="10"/>
   <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
@@ -705,7 +708,7 @@ const SVG_QUESTION = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none
 </svg>`;
 
 /* list view — rows of lines */
-const SVG_LIST = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+export const SVG_LIST = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none"
   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <line x1="8" y1="6" x2="20" y2="6"/>
   <line x1="8" y1="12" x2="20" y2="12"/>
@@ -716,7 +719,7 @@ const SVG_LIST = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none"
 </svg>`;
 
 /* section view — a framed table with a frozen header row */
-const SVG_SECTION = `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"
+export const SVG_SECTION = `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"
   xmlns="http://www.w3.org/2000/svg">
   <path d="M6.25 3C4.45507 3 3 4.45507 3 6.25V17.75C3 19.5449 4.45507 21 6.25 21H17.75C19.5449 21 21 19.5449 21 17.75V6.25C21 4.45507 19.5449 3 17.75 3H6.25ZM4.5 6.25C4.5 5.2835 5.2835 4.5 6.25 4.5H17.75C18.7165 4.5 19.5 5.2835 19.5 6.25V8.5H4.5V6.25ZM10 10H14V14H10V10ZM8.5 10V14H4.5V10H8.5ZM8.5 15.5V19.5H6.25C5.2835 19.5 4.5 18.7165 4.5 17.75V15.5H8.5ZM10 19.5V15.5H14V19.5H10ZM15.5 14V10H19.5V14H15.5ZM15.5 15.5H19.5V17.75C19.5 18.7165 18.7165 19.5 17.75 19.5H15.5V15.5Z"/>
 </svg>`;

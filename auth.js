@@ -1,9 +1,10 @@
 /* ================================================================
    auth.js — authentication (login modal, logout)
-   Depends on: data.js (for AUTH_HASH)
    ================================================================ */
 
-const AUTH = (function () {
+import { AUTH_HASH } from './data.js';
+
+export const AUTH = (function () {
 
   /* ── private ── */
 

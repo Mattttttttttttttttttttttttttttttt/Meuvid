@@ -1,7 +1,10 @@
 /* ================================================================
    nav.js — top bar rendering and binding
-   Depends on: data.js, utils.js, auth.js
    ================================================================ */
+
+import { NAV_ITEMS } from './data.js';
+import { esc, initGlobalShortcuts, showConfirm, resetMeuvidData, exportDataJS } from './utils.js';
+import { AUTH } from './auth.js';
 
 /**
  * Render and bind the top navigation bar.
@@ -25,7 +28,7 @@ const HAMBURGER_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" fill="non
   <line class="ham-bot" x1="3" y1="17" x2="21" y2="17"/>
 </svg>`;
 
-function initNav(currentPage, onLoginClick, onLogout) {
+export function initNav(currentPage, onLoginClick, onLogout) {
   const loggedIn  = AUTH.isLoggedIn();
   const container = document.getElementById('topbar-container');
 

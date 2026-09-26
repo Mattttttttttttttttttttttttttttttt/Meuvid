@@ -1,7 +1,14 @@
 /* ================================================================
    dict.js — dictionary and affixes page (configurable)
-   Depends on: data.js, utils.js, auth.js
    ================================================================ */
+
+import {
+  esc, withSnippets, load, save, registerUndoCallback, pushUndo, showConfirm,
+  hideKeyForEntry, applyHiding, revealHidden, filterEntries,
+  SVG_QUESTION, SVG_LIST, SVG_SECTION,
+} from './utils.js';
+import { AUTH } from './auth.js';
+import { createDictSection } from './dict-section.js';
 
 /**
  * Create a dictionary/affixes page.
@@ -16,7 +23,7 @@
  *
  * @returns {{ render: Function }}
  */
-function createDictPage(cfg) {
+export function createDictPage(cfg) {
   const { hasPos, dataKey, dataRaw, kwTable, label, noun } = cfg;
   const hasSections = !!cfg.hasSections;
   const viewKey     = dataKey + '_view'; // 'list' | 'section'

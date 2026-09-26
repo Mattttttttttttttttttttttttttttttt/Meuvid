@@ -3,7 +3,7 @@
    Last updated: 2026-09-24T01:56:06.401Z
    ================================================================ */
 
-const DICT = [
+export const DICT = [
   ["-er", "sfx.", "turns a number into a compounder (e.g. \"three\" => \"tri\")"],
   ["aesh", "prep.", "within: 1D/2D; [+ time range / day, etc.]"],
   ["aik", "adv.", "4/5"],
@@ -243,7 +243,7 @@ const DICT = [
   ["zoot", "q.", "where: replaces a oot adv."],
 ];
 
-const AFFIXES = [
+export const AFFIXES = [
   ["bi", "small: 2D/3D"],
   ["bleu", "relating to the past"],
   ["cee", "shallow: front-back short"],
@@ -275,7 +275,7 @@ const AFFIXES = [
   ["zau", "long: 1D"],
 ];
 
-const GRAMMAR = [
+export const GRAMMAR = [
   { text: "# punctuations", id: "bynsrf0k" },
   { text: "comma: 1. indicate pauses. 2. break long sentences into parts.\nperiod: 1. indicate longer pauses. 2. end a sentence, when the thought is complete.\nspace: 1. separate words. 2. use multiple to indicate pauses duration in writing.\nbrackets []: group things/clauses for clarity\nexclamation mark: exclamations\nquestion mark: questions\nparentheses: indicate comments\nslash and ampersand: abbreviations for lol and ul\ndash: 1. force appending / prepending a suffix / prefix. 2. split long words.\nsemicolon:", id: "0myrgnuu" },
   { text: "# questions", id: "uxfe8j53" },
@@ -304,7 +304,7 @@ const GRAMMAR = [
   { text: "yao vs. buyao (& qoe):\n\t- mo vuet eeb, yao blop seezet galan.\n\t=> \"I will go to bed, after you write something.\" The stress is on the yao clause.\n\t- mo eebeul, buyao mo seezeul galan.\n\t=> \"I went to bed after I wrote something.\" The stress is NOT on the buyao clause.", id: "wo5kg24f" },
 ];
 
-const PHONETICS = [
+export const PHONETICS = [
   { text: "# overarching theme", id: "krt48vjn" },
   { text: "Pronunciation is fully predictable from spelling (like literally every other language other than English). Each letter / double vowel represents one sound.", id: "fwnd2dbi" },
   { text: "Consonants at the end of a word is pronounced with no aspiration, unless the next word starts with a vowel, in which case, catenation.", id: "y9c6make" },
@@ -318,7 +318,7 @@ const PHONETICS = [
   { text: "a = /a/\nae = /æ/\nai = /ai/\nau = /ao/\ne = /ə/\nee = /e/\nei = /ei/\neu = /y/\ni = /i/ (not ɪ)\no = /o/\noe = /ø/\noi = /oi/\noo = /o:/\nou = /ou/\nu = /u/", id: "p3khs509" },
 ];
 
-const PHILOSOPHY = [
+export const PHILOSOPHY = [
   { text: "# purpose", id: "3kwsxmvc" },
   { text: "Meuvid is, after all, a personal project. I will throw in whatever feature I want, and some of that may solve your communication problems. Much needed words will be coined, and I hope that Meuvid can mayhaps reduce miscommunication and promote good values. And have some fun in the process.", id: "re24msqi" },
   { text: "If I had to pick a grander-sounding purpose, I will say that Meuvid is a language designed for humans and all their quirks. One of the big area of attack is politeness and the unsaid, which I will try to remove through formulations of expectations. I also want to define vague concepts precisely so we avoid circular philosophical questions that ultimately just depended on definitions.", id: "bvicm5lf" },
@@ -326,7 +326,7 @@ const PHILOSOPHY = [
   { text: "Yes. You can violate any and all of grammar, as long as you are perfectly sure the same meaning will be conveyed across. Note that grammar in Meuvid is designed to enhance clarity and remove ambiguity. The rules are not arbitrary, so do not violate them for no good reason.", id: "7enx19v4" },
 ];
 
-const SECTIONS = [
+export const SECTIONS = [
   ["determiners", [
     ["le"],
     ["ti"],
@@ -519,7 +519,7 @@ const SECTIONS = [
   ]],
 ];
 
-const AFFIXES_SECTIONS = [
+export const AFFIXES_SECTIONS = [
   ["size", [
     ["hi"],
     ["zau"],
