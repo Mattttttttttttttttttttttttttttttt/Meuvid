@@ -32,7 +32,7 @@
     import { AUTH } from './auth.js';
     import { initNav } from './nav.js';
     import { renderHome } from './home.js';
-    import { DICT, AFFIXES } from './lang-data.js';
+    import { DICT } from './lang-data.js';
 
     function render() {
       initNav(
@@ -40,10 +40,7 @@
         () => AUTH.showLoginModal(render),
         () => { AUTH.logout(); render(); }
       );
-      renderHome(
-        load('mv_dict', DICT),
-        load('mv_affixes', AFFIXES)
-      );
+      renderHome(load('mv_dict', DICT));
     }
 
     render();

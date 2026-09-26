@@ -1,5 +1,5 @@
 /* ================================================================
-   textpage.js — grammar / phonetics / philosophy pages (configurable)
+   textpage.js — grammar / phonetics / writing / philosophy pages (configurable)
    ================================================================ */
 
 import {

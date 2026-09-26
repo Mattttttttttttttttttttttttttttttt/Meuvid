@@ -13,24 +13,19 @@ export const DICT_KEYWORDS = [
   ["def(x)", "Match definitions."],
 ];
 
-export const AFFIXES_KEYWORDS = [
-  ["all(x)", "Match x across all fields: the affix itself and its definition."],
-  ["def(x)", "Match definitions."],
-];
-
 // Navigation items — id must match the page's active id passed to initNav()
 export const NAV_ITEMS = [
   { id: 'dict', label: 'dictionary', href: 'dict' },
   { id: 'grammar', label: 'grammar', href: 'grammar' },
-  { id: 'affixes', label: 'affixes', href: 'affixes' },
   { id: 'phonetics', label: 'phonetics', href: 'phonetics' },
+  { id: 'writing', label: 'writing', href: 'writing' },
   { id: 'philosophy', label: 'philosophy…', href: 'philosophy' },
 ];
 
 export const HOME_CARDS = [
   { id: 'dict', title: 'Dictionary', href: 'dict', desc: 'Meuvid words and definitions' },
   { id: 'grammar', title: 'Grammar', href: 'grammar', desc: 'the grammar and discourse markers' },
-  { id: 'affixes', title: 'Affixes', href: 'affixes', desc: 'build words from affixes' },
   { id: 'phonetics', title: 'Phonetics', href: 'phonetics', desc: 'Meuvid\'s easy pronunciation rules' },
+  { id: 'writing', title: 'Writing', href: 'writing', desc: 'writing samples and musings' },
   { id: 'philosophy', title: 'Philosophy', href: 'philosophy', desc: 'communication guidelines and more' },
 ];

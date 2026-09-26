@@ -1,5 +1,5 @@
 /* ================================================================
-   dict.js — dictionary and affixes page (configurable)
+   dict.js — configurable word-list page
    ================================================================ */
 
 import {

@@ -5,11 +5,10 @@
 import { HOME_CARDS } from './data.js';
 import { esc, SVG_CHEVRON } from './utils.js';
 
-export function renderHome(dict, affixes) {
+export function renderHome(dict) {
   const cards = HOME_CARDS.map(c => {
     const meta =
       c.id === 'dict'  ? `${dict.length} word${dict.length !== 1 ? 's' : ''}` :
-      c.id === 'affixes' ? `${affixes.length} affixe${affixes.length !== 1 ? 's' : ''}` :
       '';
     return `
       <a class="card-link" href="${c.href}">

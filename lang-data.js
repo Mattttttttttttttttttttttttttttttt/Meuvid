@@ -1,10 +1,9 @@
 /* ================================================================
    lang-data.js — all language data arrays
-   Last updated: 2026-09-24T01:56:06.401Z
+   Last updated: 2026-09-26T06:29:21.508Z
    ================================================================ */
 
 export const DICT = [
-  ["-er", "sfx.", "turns a number into a compounder (e.g. \"three\" => \"tri\")"],
   ["aesh", "prep.", "within: 1D/2D; [+ time range / day, etc.]"],
   ["aik", "adv.", "4/5"],
   ["amar", "n.", "house: a place someone would call home"],
@@ -52,6 +51,7 @@ export const DICT = [
   ["duo", "n.", "ten"],
   ["eeb", "v.", "go to bed"],
   ["en", "adv.", "[see grammar en-]"],
+  ["-er", "sfx.", "turns a number into a compounder (e.g. \"three\" => \"tri\")"],
   ["eues", "adj.", "unpleasant: experiencing it brings mild, unpleasant emotions (boredom, sadness, anxiety...)"],
   ["eumien", "adj.", "pleasant: experiencing it brings dopamine"],
   ["faevois", "n.", "reason: the human-assigned cause of any particular human action"],
@@ -243,65 +243,35 @@ export const DICT = [
   ["zoot", "q.", "where: replaces a oot adv."],
 ];
 
-export const AFFIXES = [
-  ["bi", "small: 2D/3D"],
-  ["bleu", "relating to the past"],
-  ["cee", "shallow: front-back short"],
-  ["cor", "deep: front-back long"],
-  ["gee", "short: temporally"],
-  ["gra", "far: spatially, temporally, idea-ly"],
-  ["hai", "big: 2D/3D"],
-  ["hi", "short: 1D"],
-  ["i", "[object]"],
-  ["jeu", "narrow: horizontally short"],
-  ["kif", "act(ion)"],
-  ["lei", "close: spatially, temporally, idea-ly"],
-  ["loo", "tall: vertically tall"],
-  ["loo", "tall: vertically tall", 1],
-  ["mail", "wide: horizontally long"],
-  ["meus", "speech"],
-  ["nel", "short: vertically short"],
-  ["ner", "short: vertically short"],
-  ["o", "[subject]"],
-  ["oot", "place, location"],
-  ["qoe", "before: temporal"],
-  ["sher", "constant"],
-  ["shi", "fast"],
-  ["vao", "slow"],
-  ["vid", "thought"],
-  ["vu", "relating to the future"],
-  ["wou", "long: temporally"],
-  ["yao", "after: temporal"],
-  ["zau", "long: 1D"],
-];
-
 export const GRAMMAR = [
   { text: "# punctuations", id: "bynsrf0k" },
-  { text: "comma: 1. indicate pauses. 2. break long sentences into parts.\nperiod: 1. indicate longer pauses. 2. end a sentence, when the thought is complete.\nspace: 1. separate words. 2. use multiple to indicate pauses duration in writing.\nbrackets []: group things/clauses for clarity\nexclamation mark: exclamations\nquestion mark: questions\nparentheses: indicate comments\nslash and ampersand: abbreviations for lol and ul\ndash: 1. force appending / prepending a suffix / prefix. 2. split long words.\nsemicolon:", id: "0myrgnuu" },
+  { text: "comma: 1. indicate pauses. 2. break long sentences into parts.\nperiod: 1. indicate longer pauses. 2. end a sentence, when the thought is complete.\nspace: 1. separate words. 2. use multiple to indicate pauses duration in writing.\nbrackets []: group things/clauses for clarity\nexclamation mark: exclamations\nquestion mark: questions\nparentheses: indicate comments\nslash and ampersand: abbreviations for lol and ul\ndash: 1. force attaching an affix. 2. split long words.\nsemicolon: juxtapose two or more sentences side by side with no clarification on their inter-relationships", id: "0myrgnuu" },
   { text: "# questions", id: "uxfe8j53" },
-  { text: "- asked with a raising tone\n- precede with a question teaser\n- no word order change, just substitute in the question word, created by <g>z-</g>\n- to convey that <h>the question is rhetorical</h>, use <g>-iza</g>\n- to convey that <h>you have no expectations of the answer</h>, use <g>-oci</g>\n- to convey that <h>this is a confirmation question</h>, use <g>nothing</g>", id: "46cv4tg2" },
+  { text: "- asked with a raising tone\n- no word order change, just substitute in the question word, created by <g>z-</g>\n- to convey that <h>the question is rhetorical</h>, use <g>-iza</g>\n- to convey that <h>you have no expectations of the answer</h>, use <g>-oci</g>\n- to convey that <h>this is a confirmation question</h>, use <g>nothing</g>", id: "46cv4tg2" },
   { text: "# imperatives", id: "5x0p5suc" },
-  { text: "- the verb suffix -et becomes <g>-shiwa</g>\n- use best judgement when the verb doesn't end in -et\n- </g>sher becomes shiwa</g>", id: "ue767j52" },
+  { text: "- replace -et with <g>-shiwa</g>\n- use best judgement when the verb doesn't end in -et\n- sher becomes <g>shiwa</g>", id: "ue767j52" },
   { text: "# adjectives", id: "ywqrmiqn" },
   { text: "- <h>comparative</h>: <g>all adjectives are by definition a comparative</g>\n- <h>superlative</h>: <g>add -oe</g>", id: "7m5ajnfl" },
-  { text: "- use <g>-an</g> to <h>use an adjective as a noun, e.g. \"the red one\"</h>\n\tnote: plural inflection is needed: \"the considerate\" => \"shau haishemianil\"", id: "mpt63qc4" },
+  { text: "- use <g>-an</g> to <h>use an adjective as a noun, e.g. \"the red one\"</h>\n\tnote: plural inflection is needed: \"the considerate\" => `shau haishemianil`", id: "mpt63qc4" },
   { text: "# inflections", id: "lkhm87nj" },
   { text: "- <h>plural</h>: <g>add -il</g>", id: "6oup2v3b" },
   { text: "- <h>past</h>: <g>change to -eul</g>\n- <h>perfect</h>: <g>change to -ov</g>\n- <h>progressive</h>: <g>change to -eiz</g>\n- <h>passive</h>: <g>change to -am</g>\n- <h>impossibility</h>: <g>change to -ee</g>", id: "c6hnq9b0" },
   { text: "# derivation", id: "yzncyryi" },
   { text: "\"vr.\" means the \"verb root\", which is oftentimes the associated noun.", id: "j1iigu95" },
-  { text: "- substitute with <g>z-</g> to create <h>the question word</h>\n- substitute with <g>w-</g> to create <h>the restrictive relative pronoun</h>\n- substitute with <g>bu-</g> to create <h>the unrestrictive relative pronoun</h>\n   note: use <g>noi</g> to create <h>a noun clause, commonly an event</h>\n   note: noi/kajee can be used to <g>create a verb clause as an action</g>, by using <h>verb right after the declaration.</h>", id: "43t04mt1" },
   { text: "- <g>en-</g>: <h>if the old term was x against 0, then the new term is 0 against x</h>\n- <g>fe-</g>: <h>if the old term was x against 0, then the new term is -x against 0</h>", id: "jwilyzfw" },
   { text: "- <g>ge-</g>: <h>[adj. ­=> vt.] to turn gln into [adj.], to make gln [adj.]</h>", id: "kw52tunn" },
-  { text: "- <g>-an</g>: <h>[vr. => n.] the action of doing [v.]\n          note: this ≈ English's -tion suffix, NOT -ing.\n          [adj. => n.] the property related to [adj.]</h>", id: "1scookow" },
-  { text: "- <g>-ot</g>: <h>[vr. => adj.] = wan [v.]-am </h>\n- <g>-ia</g>: <h>[vr. => adj.] = wan [v.] glv/n</h>\n- <g>-in</g>: <h>[vr. => adj.] = wan rinam [v.]</h>", id: "hrx1d62j" },
+  { text: "- <g>-an</g>: <h>[vr. => n.] the action of doing [v.]\n\tnote: this ≈ English's -tion suffix, NOT -ing.\n\t[adj. => n.] the property related to [adj.]</h>", id: "1scookow" },
+  { text: "- <g>-ot</g>: <h>[vr. => adj.] = wan [v.]-am </h>\n- <g>-ia</g>: <h>[vr. => adj.] = wan [v.] glv/n</h>\n- <g>-in</g>: <h>[vr. => adj.] = wan rinam [v.]</h>\n- <g>-or</g>: <h>[n. => adj.] = ap [n.]</h>", id: "hrx1d62j" },
   { text: "- <g>-(e)sh</g>: <h>[adj. => adv.] to use this adjective to modify another, immediately following adjective</h>\n- <g>-li</g>: <h>[adj. => adv.] to use this adjective to modify the sentence (the verb)</h>\n\tnote: can also <g>use adj. directly before a verb</g> to do this.", id: "7lr3t0s5" },
   { text: "# prepositions", id: "m6h0ptp8" },
-  { text: "- to <h>use a verb as a noun behind a preposition</h>, you <g>just use the verb without modification, but add -et for the prep. (exception: noi/kajee)</g>\n- To associate an action with an adj., first say the adj, then sher-[+et], then the action phrase. Or use noi/kajee.\n- To <h>use prepositions that require a POS suffix</h>, <g>first say it before the first item that you wish to join.\n\te.g. \"ul amaril ulan noi shau auzbleu shert ti woesegil\"</g>\n   However, if you use prepositions to join two lowest-level terms, then you may use only the prepositions at the junctions, and simply attach -e:\n\te.g. \"amaril ule shau auzbleu\"", id: "tnybjw4m" },
+  { text: "- To <h>use a verb as a noun behind a preposition</h>, you <g>just use the verb without modification, but add -et for the prep. (exception: `noi/jee`)</g>\n- To associate an action with an adj., first say the adj, then `sher-[+et]`, then the action phrase. Or use `noi/jee`.\n- To <h>use prepositions that require a POS suffix</h>, <g>first say it before the first item that you wish to join.\n\te.g. `ul amaril ulan noi shau auzbleu shert ti woesegil`</g>\n   However, if you <h>use prepositions to join two lowest-level terms</h>, then you <g>may use only the prepositions at the junctions, and simply attach -e:\n\te.g. `amaril ule shau auzbleu`</g>", id: "tnybjw4m" },
   { text: "# special verbs", id: "qa7avt00" },
-  { text: "- moumet is required where applicable.\n- special verb + adj. directly, without `sher`.", id: "gem958xu" },
+  { text: "- `moumet` is required where applicable.\n- special verb + adj. directly, without `sher`.", id: "gem958xu" },
+  { text: "# clauses", id: "8f5i1kjy" },
+  { text: "- <g>substitute with w-</g>: <h>the restrictive relative pronoun</h>\n- <g>substitute with bu-</g>: <h>the unrestrictive relative pronoun</h>\n \tnote: use <g>`noi`</g> to create <h>a noun clause, commonly an event</h>\n\tnote: `noi/jee` can be used to <g>create a verb clause as an action</g>, by using <h>verb right after the declaration.</h>", id: "43t04mt1" },
+  { text: "The verb can be moved to the end if the clause is sufficiently short.", id: "sp20bxl7" },
   { text: "# general notes", id: "qzodtezj" },
-  { text: "yao vs. buyao (& qoe):\n\t- mo vuet eeb, yao blop seezet galan.\n\t=> \"I will go to bed, after you write something.\" The stress is on the yao clause.\n\t- mo eebeul, buyao mo seezeul galan.\n\t=> \"I went to bed after I wrote something.\" The stress is NOT on the buyao clause.", id: "wo5kg24f" },
+  { text: "`yao vs. buyao (& qoe)`:\n\t- `mo vuet eeb, yao blop seezet galan.`\n\t=> \"I will go to bed, after you write something.\" The stress is on the `yao` clause.\n\t- `mo eebeul, buyao mo seezeul galan.`\n\t=> \"I went to bed after I wrote something.\" The stress is NOT on the `buyao` clause.", id: "wo5kg24f" },
 ];
 
 export const PHONETICS = [
@@ -316,6 +286,10 @@ export const PHONETICS = [
   { text: "# vowels", id: "kpf48vuh" },
   { text: "i and u can act as y and w (their approximants).", id: "5z56wl39" },
   { text: "a = /a/\nae = /æ/\nai = /ai/\nau = /ao/\ne = /ə/\nee = /e/\nei = /ei/\neu = /y/\ni = /i/ (not ɪ)\no = /o/\noe = /ø/\noi = /oi/\noo = /o:/\nou = /ou/\nu = /u/", id: "p3khs509" },
+];
+
+export const WRITING = [
+  { text: "hello world :)", id: "ga4wvtaz" },
 ];
 
 export const PHILOSOPHY = [
@@ -341,7 +315,7 @@ export const SECTIONS = [
     ["arn"],
   ]],
   ["pronouns", [
-    { text: "laen defaults to gender-neutral; only use laeni, etc. when needing to specify gender.", id: "ycjh0856" },
+    { text: "`laen` defaults to gender-neutral; only use `laeni`, etc. when <b>needing</b> to specify gender.", id: "ycjh0856" },
     { text: "For object form, replace the first vowel with \"i\".\nFor possessives, replace the first vowel with \"er\".", id: "fd1zjvsd" },
     ["mo"],
     ["blop"],
@@ -354,7 +328,7 @@ export const SECTIONS = [
     ["blopn"],
     ["laenen"],
     ["noi"],
-    ["kajee"],
+    ["jee"],
   ]],
   ["special verbs", [
     ["bleut"],
@@ -419,7 +393,7 @@ export const SECTIONS = [
     ["suvein"],
     ["faulo"],
   ]],
-  ["colors", [
+  ["laiyakil", [
     { text: "primary colors: vog, fas, deum, bas, ouv, qon, heush\nsecondary colors: jeeyeu, ceeven\nnote: purple is a shade of qon or a shade of heush", id: "1d48p1h3" },
     ["laiyak"],
     ["vog"],
@@ -445,7 +419,8 @@ export const SECTIONS = [
     ["loo"],
   ]],
   ["numbers", [
-    { text: "when hand signaling a number, binary is used. with palms face outwards, right pinky is 1, left pinky is 512.\nwith palms facing inwards, one can signal numbers as follows with one hand (left most digit is pinky):\nnil = 00001\t\tvan = 00010\t\tbeem = 00110\ncoe = 11100\t\ttus = 11110\t\tsho = 11111\nziv = 10001\t\tmien = 10010\t\tkuev = 00011\nreik = 10011\t\tduo = 00000", id: "h4e1fwwc" },
+    { text: "<g>-er</g>: turn a number into <h>a compounder: \"three\" => \"tri\".</h>\n<g>-(e)s</g>: turn a number into <h>its reciprocal: \"three\" => \"(one) third\".</h>\n<g>-or</g>: turn a number into <h>cardinals: \"three\" => \"(the) third\".</h>\n<g>-li</g>: turn a number into <h>an aderb as follows: \"three\" => \"in groups of three\".</h>\n<g>-ersh & -erli</g>: turn a number into <h>an aderb as follows: \"three\" => \"triple\".</h>\n<g>-eret</g>: turn a number into <h>a verb as follows: \"three\" => \"triple\".</h>", id: "nuurpcq5" },
+    { text: "When hand signaling a number, binary is used. With palms face outwards, right pinky is 1, left pinky is 512.\nWith palms facing inwards, one can signal numbers as follows with one hand (left most digit is pinky):\n`nil` = 00001\t\t`van` = 00010\t\t`beem` = 00110\n`coe` = 11100\t\t`tus` = 11110\t\t`sho` = 11111\n`ziv` = 10001\t\t`mien` = 10010\t\t`kuev` = 00011\n`reik` = 10011\t\t`duo` = 00000", id: "h4e1fwwc" },
     { text: "e.g. 1371,87934,91823 = vcmvq kmrctl rvkbc", id: "irvlcapl" },
     ["nil"],
     ["van"],
@@ -464,10 +439,9 @@ export const SECTIONS = [
     ["lais"],
     ["qa"],
     ["soug"],
-    ["-er"],
   ]],
   ["bomvil", [
-    { text: "these are used for precise communications. when one is expressing oneself, e.g. when telling a story to a friend, one may choose to use the collection of words that mean \"very\".", id: "p36uohb9" },
+    { text: "These are used for precise communications. When one is expressing oneself, e.g. when telling a story to a friend, one may choose to use the collection of words that mean \"very\".", id: "p36uohb9" },
     ["bomve"],
     ["top"],
     ["yeu"],
@@ -490,7 +464,7 @@ export const SECTIONS = [
     ["gooco"],
     ["goocia"],
     { text: "absolute time:", id: "rxcy487r" },
-    { text: "ap and aesh are used for at/in/on.\nA standalone `quvuril` or `haivonil` denote the collection of weekdays (5 of `quvur`), and weekend, respectively.\nTo use \"kee haivonil\", one must be in a weekend themselves.", id: "h150njam" },
+    { text: "`ap` and `aesh` are used for at/in/on.\nA standalone `quvuril` or `haivonil` denote the collection of weekdays (5 of `quvur`), and weekend, respectively.\nTo use `kee haivonil`, one must be in a weekend themselves.", id: "h150njam" },
     ["sheece"],
     ["sheeqi"],
     ["sheeco"],
@@ -513,23 +487,10 @@ export const SECTIONS = [
     ["fecish"],
     ["fe'gof"],
   ]],
-  ["family", []],
+  ["family", [
+    { text: "To express a compound relationship, simply say the nouns back to back.", id: "278nmudk" },
+  ]],
   ["particles & discourse markers", [
     ["zis"],
-  ]],
-];
-
-export const AFFIXES_SECTIONS = [
-  ["size", [
-    ["hi"],
-    ["zau"],
-    ["bi"],
-    ["hai"],
-    ["jeu"],
-    ["mail"],
-    ["nel"],
-    ["loo", 1],
-    ["cee"],
-    ["cor"],
   ]],
 ];

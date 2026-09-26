@@ -2,7 +2,7 @@
    utils.js — shared utility functions and SVG icons
    ================================================================ */
 
-import { DICT, AFFIXES, GRAMMAR, PHONETICS, PHILOSOPHY, SECTIONS, AFFIXES_SECTIONS } from './lang-data.js';
+import { DICT, GRAMMAR, PHONETICS, WRITING, PHILOSOPHY, SECTIONS } from './lang-data.js';
 import { AUTH } from './auth.js';
 
 /** Escape a string for safe HTML attribute / text insertion. */
@@ -243,12 +243,13 @@ document.addEventListener('click', e => {
   _syncHideEl(el);
 });
 
-/* Alt+scroll moves twice as fast. */
+/* Alt+scroll moves twice as fast. Let the native scroll happen (so it keeps
+   its smoothing/momentum) and just add one extra deltaY on top, rather than
+   replacing the whole scroll with an instant jump. */
 window.addEventListener('wheel', e => {
   if (!e.altKey) return;
-  e.preventDefault();
-  window.scrollBy({ top: e.deltaY * 2, left: e.deltaX * 2 });
-}, { passive: false });
+  window.scrollBy({ top: e.deltaY, left: e.deltaX });
+}, { passive: true });
 
 document.addEventListener('click', e => {
   e.target.closest('button')?.blur();
@@ -598,37 +599,48 @@ export function filterEntries(data, query, hasPos) {
   return [...starts, ...rest];
 }
 
-/* ── Inline SVG icons ── */
+/**
+ * Serialize a JavaScript object with unquoted keys.
+ */
+function _serObj(obj) {
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) {
+    return '[' + obj.map(item => _serObj(item)).join(', ') + ']';
+  }
+  const props = Object.entries(obj).map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
+  return `{ ${props.join(', ')} }`;
+}
 
 /**
  * Serialize a 2D array (e.g. dict, affixes) into a JS array literal.
- * Each sub-array becomes one indented line.
+ * Supports rows containing either strings or objects.
  */
 function _ser2D(arr) {
   const rows = arr.map(row =>
-    '  [' + row.map(s => JSON.stringify(s)).join(', ') + ']'
+    '  [' + row.map(s => _serObj(s)).join(', ') + ']'
   ).join(',\n');
   return `[\n${rows},\n]`;
 }
 
 /**
- * Serialize a flat string array (e.g. grammar paragraphs) into a JS array literal.
+ * Serialize a flat array (e.g. grammar paragraphs) into a JS array literal.
+ * Handles both plain strings and objects (like { text, id }).
  */
 function _ser1D(arr) {
-  const rows = arr.map(s => '  ' + JSON.stringify(s)).join(',\n');
+  const rows = arr.map(s => '  ' + _serObj(s)).join(',\n');
   return `[\n${rows},\n]`;
 }
 
 /**
  * Serialize the SECTIONS dataset. Each section is [headingText, itemsArray];
- * an item is either a string (paragraph) or an array (a referenced word entry).
+ * an item can be a string, an object, or an array (referenced word entry).
  */
 function _serSections(arr) {
   const secs = arr.map(([heading, items]) => {
     const lines = (items || []).map(it =>
       Array.isArray(it)
         ? '    [' + it.map(s => JSON.stringify(s)).join(', ') + ']'
-        : '    ' + JSON.stringify(it)
+        : '    ' + _serObj(it)
     ).join(',\n');
     const body = lines ? `\n${lines},\n  ` : '';
     return `  [${JSON.stringify(heading)}, [${body}]]`;
@@ -638,12 +650,11 @@ function _serSections(arr) {
 
 const MV_DATA_KEYS = [
   'mv_dict', 'mv_dict_view',
-  'mv_affixes', 'mv_affixes_view',
   'mv_grammar',
   'mv_phonetics',
+  'mv_writing',
   'mv_philosophy',
   'mv_sections',
-  'mv_affixes_sections',
   'mv_undo', 'mv_redo',
 ];
 
@@ -658,12 +669,11 @@ export function resetMeuvidData() {
  */
 export function exportDataJS() {
   const dict = load('mv_dict', DICT);
-  const affixes = load('mv_affixes', AFFIXES);
   const grammar = load('mv_grammar', GRAMMAR);
   const phonetics = load('mv_phonetics', PHONETICS);
+  const writing = load('mv_writing', WRITING);
   const philosophy = load('mv_philosophy', PHILOSOPHY);
   const sections = load('mv_sections', SECTIONS);
-  const affixesSections = load('mv_affixes_sections', AFFIXES_SECTIONS);
 
   const ts = new Date().toISOString();
 
@@ -675,17 +685,15 @@ export function exportDataJS() {
 
 export const DICT = ${_ser2D(dict)};
 
-export const AFFIXES = ${_ser2D(affixes)};
-
 export const GRAMMAR = ${_ser1D(grammar)};
 
 export const PHONETICS = ${_ser1D(phonetics)};
 
+export const WRITING = ${_ser1D(writing)};
+
 export const PHILOSOPHY = ${_ser1D(philosophy)};
 
 export const SECTIONS = ${_serSections(sections)};
-
-export const AFFIXES_SECTIONS = ${_serSections(affixesSections)};
 `;
 
   const blob = new Blob([content], { type: 'text/javascript' });

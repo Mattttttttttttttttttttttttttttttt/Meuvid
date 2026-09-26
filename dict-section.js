@@ -1,5 +1,5 @@
 /* ================================================================
-   dict-section.js — section view for the dictionary and affixes pages
+   dict-section.js — section view for a dictionary page
 
    Data model (localStorage key cfg.sectionsKey, fallback cfg.sectionsRaw):
      [ [headingText, items], ... ]

@@ -13,6 +13,7 @@
   --border-2: #32323a;
   --text: #d8d8d3;
   --text-2: #aaaab5;
+  --text-bright: color-mix(in oklab, var(--text-2) 100%, #ffffff 25%);
   --text-3: #8b8b98;
   --danger: #b83c3c;
   --r-xs: 6px;
@@ -874,9 +875,16 @@ body {
 }
 
 /* Inline rich-text markup rendered inside text-page paragraphs and headings */
-.para-content > p b  { font-weight: 600; }
+.para-content > p b, .para-content > p g  {
+  font-weight: 600;
+  color: var(--text-bright);
+}
 .para-content > p i, .para-content > h1 i  { font-style: italic; }
-.para-content > p u, .para-content > h1 u  { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--text-3); }
+.para-content > p u, .para-content > h1 u  {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--text-3);
+}
 .para-content > h1 b { font-weight: 700; }
 
 /* ================================================================
