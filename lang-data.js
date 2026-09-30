@@ -1,6 +1,6 @@
 /* ================================================================
    lang-data.js — all language data arrays
-   Last updated: 2026-09-26T06:49:15.912Z
+   Last updated: 2026-09-30T16:02:15.215Z
    ================================================================ */
 
 export const DICT = [
@@ -16,7 +16,7 @@ export const DICT = [
   ["auz'meus", "n.", "language"],
   ["baesh", "det.", "former: the earlier-mentioned of the two of smth"],
   ["bai", "prep.", "outside: any dimension"],
-  ["baira", "prep.", "out of: any dimension"],
+  ["baira", "prep./adv.", "out (of): any dimension"],
   ["bas", "adj./n.", "cyan: 00fffff"],
   ["beem", "n.", "two"],
   ["ben", "postp.", "denote subject in passive voice"],
@@ -53,11 +53,13 @@ export const DICT = [
   ["en", "adv.", "[see grammar en-]"],
   ["eues", "adj.", "unpleasant: experiencing it brings mild, unpleasant emotions (boredom, sadness, anxiety...)"],
   ["eumien", "adj.", "pleasant: experiencing it brings dopamine"],
+  ["faen", "pron.", "third non-person singular"],
+  ["faenen", "pron.", "they: third non-person plural"],
   ["faevois", "n.", "reason: the human-assigned cause of any particular human action"],
   ["faevoiset", "v.", "introspect to find faevoise"],
   ["fakeu", "adj.", "morally/socially bad: other people disapproves of this"],
   ["fas", "adj./n.", "yellow: ffff00"],
-  ["faulo", "prep.", "through: 2D, 3D"],
+  ["faulo", "prep./adv.", "through: 2D, 3D"],
   ["fe", "adv.", "[see grammer fe-]"],
   ["fe'gof", "adj.", "unfunctional: spoiled, unhealthy, didn't work out..."],
   ["fecish", "adj.", "bad for something in the future"],
@@ -113,7 +115,7 @@ export const DICT = [
   ["laen", "pron.", "third person singular [default]"],
   ["laena", "pron.", "she: third person singular female human"],
   ["laenek", "det.", "third person singular possessive"],
-  ["laenen", "pron.", "they: third person plural"],
+  ["laenen", "pron.", "they: third person plural [default]"],
   ["laeni", "pron.", "third person singular human [unspecified/other gender]"],
   ["laeno", "pron.", "he: third person singular male human"],
   ["lais", "n.", "hundred thousand"],
@@ -206,7 +208,7 @@ export const DICT = [
   ["tulrin", "adj.", "knowable: [tulen] possible to be obtained"],
   ["turesa", "adj.", "good (vague), used in jokes"],
   ["tus", "n.", "four"],
-  ["ugien", "prep.", "into: any dimension"],
+  ["ugien", "prep./adv.", "into; inwards: any dimension"],
   ["ul-", "prep.", "and: parallel consideration [add POE suffix]"],
   ["uli", "conj.", "and: parallel consideration"],
   ["van", "n.", "one"],
@@ -245,10 +247,11 @@ export const DICT = [
 export const GRAMMAR = [
   { text: "# punctuations", id: "bynsrf0k" },
   { text: "comma: 1. indicate pauses. 2. break long sentences into parts.\nperiod: 1. indicate longer pauses. 2. end a sentence, when the thought is complete.\nspace: 1. separate words. 2. use multiple to indicate pauses duration in writing.\nbrackets []: group things/clauses for clarity\nexclamation mark: exclamations\nquestion mark: questions\nparentheses: indicate comments\nslash and ampersand: abbreviations for lol and ul\ndash: 1. force attaching an affix. 2. split long words.\nsemicolon: juxtapose two or more sentences side by side with no clarification on their inter-relationships", id: "0myrgnuu" },
+  { text: "Capitalize the first word in a sentence, as well as any foci of the sentence.", id: "1mwo6xch" },
   { text: "# questions", id: "uxfe8j53" },
   { text: "- asked with a raising tone\n- no word order change, just substitute in the question word, created by <g>z-</g>\n- to convey that <h>the question is rhetorical</h>, use <g>-iza</g>\n- to convey that <h>you have no expectations of the answer</h>, use <g>-oci</g>\n- to convey that <h>this is a confirmation question</h>, use <g>nothing</g>", id: "46cv4tg2" },
   { text: "# imperatives", id: "5x0p5suc" },
-  { text: "- replace -et with <g>-shiwa</g>\n- use best judgement when the verb doesn't end in -et\n- sher becomes <g>shiwa</g>", id: "ue767j52" },
+  { text: "- replace -et with <g>-iwa</g>\n- use best judgement when the verb doesn't end in -et\n- sher becomes <g>shiwa</g>", id: "ue767j52" },
   { text: "# adjectives", id: "ywqrmiqn" },
   { text: "- <h>comparative</h>: <g>all adjectives are by definition a comparative</g>\n- <h>superlative</h>: <g>add -oe</g>", id: "7m5ajnfl" },
   { text: "- use <g>-an</g> to <h>use an adjective as a noun, e.g. \"the red one\"</h>\n\tnote: plural inflection is needed: \"the considerate\" => `shau haishemianil`", id: "mpt63qc4" },
@@ -322,10 +325,12 @@ export const SECTIONS = [
     ["laeno"],
     ["laena"],
     ["laeni"],
+    ["faen"],
     ["mon"],
     ["mopn"],
     ["blopn"],
     ["laenen"],
+    ["faenen"],
     ["noi"],
     ["jee"],
   ]],
@@ -369,6 +374,7 @@ export const SECTIONS = [
     ["gom"],
   ]],
   ["spatial relations", [
+    { text: "Most of these prepositions can also be used as an adverb, when the object of the prep. is clear enough.", id: "bwnghbzw" },
     { text: "stationary prepositions:", id: "8azsrx3x" },
     ["ap"],
     ["tsi"],
