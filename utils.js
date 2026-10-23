@@ -486,8 +486,8 @@ export function initGlobalShortcuts() {
     if (ctrl && e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); toggleHideWords(); return; }
     if (ctrl && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); toggleHideDefs();  return; }
 
-    // Ctrl+F → focus search input
-    if (ctrl && e.key === 'f') {
+    // Ctrl+Shift+F → focus search input
+    if (ctrl && e.shiftKey && e.key.toLowerCase() === 'f') {
       const si = document.getElementById('search-input');
       if (si) { e.preventDefault(); si.focus(); si.select(); }
       return;
