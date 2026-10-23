@@ -8,7 +8,7 @@ import {
   SVG_QUESTION, SVG_LIST, SVG_SECTION,
 } from './utils.js';
 import { AUTH } from './auth.js';
-import { createDictSection } from './dict-section.js';
+import { createTextPage } from './textpage.js';
 
 /**
  * Create a dictionary/affixes page.
@@ -46,9 +46,9 @@ export function createDictPage(cfg) {
   let viewMode    = hasSections ? load(viewKey, 'list') : 'list';
 
    /* ── section view module (dictionary/affixes) ── */
-  const sectionView = hasSections ? createDictSection({
-    sectionsKey: cfg.sectionsKey,
-    sectionsRaw: cfg.sectionsRaw,
+  const sectionView = hasSections ? createTextPage({
+    dataKey: cfg.sectionsKey,
+    dataRaw: cfg.sectionsRaw,
     hasPos,
     getDict: () => data,
     addDictEntry: _addDictEntry,

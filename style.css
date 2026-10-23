@@ -1298,8 +1298,9 @@ code {
    ================================================================ */
 .sec-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
+  margin-top: 44px;
 }
 
 .sec-head > h1 {
@@ -1308,7 +1309,7 @@ code {
   color: var(--text);
   letter-spacing: -0.01em;
   line-height: 1.15;
-  margin: 44px 0 0;
+  margin: 0;
 }
 
 .sec-items { display: flex; flex-direction: column; }

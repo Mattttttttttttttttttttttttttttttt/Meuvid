@@ -789,15 +789,6 @@ function _ser2D(arr) {
 }
 
 /**
- * Serialize a flat array (e.g. grammar paragraphs) into a JS array literal.
- * Handles both plain strings and objects (like { text, id }).
- */
-function _ser1D(arr) {
-  const rows = arr.map(s => '  ' + _serObj(s)).join(',\n');
-  return `[\n${rows},\n]`;
-}
-
-/**
  * Serialize the SECTIONS dataset. Each section is [headingText, itemsArray];
  * an item can be a string, an object, or an array (referenced word entry).
  */
@@ -851,13 +842,13 @@ export function exportDataJS() {
 
 export const DICT = ${_ser2D(dict)};
 
-export const GRAMMAR = ${_ser1D(grammar)};
+export const GRAMMAR = ${_serSections(grammar)};
 
-export const PHONETICS = ${_ser1D(phonetics)};
+export const PHONETICS = ${_serSections(phonetics)};
 
-export const WRITING = ${_ser1D(writing)};
+export const WRITING = ${_serSections(writing)};
 
-export const PHILOSOPHY = ${_ser1D(philosophy)};
+export const PHILOSOPHY = ${_serSections(philosophy)};
 
 export const SECTIONS = ${_serSections(sections)};
 `;

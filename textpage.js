@@ -1,499 +1,846 @@
 /* ================================================================
-   textpage.js — grammar / phonetics / writing / philosophy pages (configurable)
+   textpage.js — sectioned text page (grammar, phonetics, …); also the section
+   view of a dictionary page
+
+   Data model (localStorage key cfg.dataKey, fallback cfg.dataRaw):
+     [ [headingText, items], ... ]
+   An item is either a paragraph { text, id }, or a word reference. A reference holds
+   only [word], or [word, id] when the word is duplicated in the source. It is
+   resolved against the live source at render time, so source edits and deletes
+   require no writes here. A reference whose target was deleted renders as such.
+
+   Reordering a heading moves its whole section past the adjacent section.
+   Reordering an item moves it one slot, crossing into the neighbouring
+   section at a section edge.
    ================================================================ */
 
 import {
-  esc, withSnippets, load, save, registerUndoCallback, pushUndo, wrapSelectedText,
-  showConfirm, randId, tagParaHideKeys, applyHiding, revealHidden, dragHandleHTML,
-  initDragReorder, setEscCleanup, clearEscCleanup, registerEscHandler, guardDiscard,
+  esc, withSnippets, load, save, registerUndoCallback, pushUndo, wrapSelectedText, showConfirm, hideKeyForEntry,
+  randId, tagParaHideKeys, applyHiding, revealHidden, dragHandleHTML, initDragReorder,
+  registerEscHandler, filterEntries, discardEditDraft, guardDiscard, formDirty,
   animateIn, animateOut, captureOpenForms, replayCollapse,
 } from './utils.js';
 import { AUTH } from './auth.js';
 
 /**
- * Create a text-content page.
+ * Standalone by default. Embedded as a dictionary's section view when cfg.getDict
+ * is given; the options below it apply only then.
  *
  * @param {object}   cfg
- * @param {string}   cfg.dataKey   - localStorage key, e.g. 'mv_grammar'
- * @param {string[]} cfg.dataRaw   - fallback paragraph array
- *
- * Data format:
- *   '# Heading'    → rendered as <h1>
- *   '\\# Text'     → rendered as <p> showing literal "# Text"
- *   'Anything else' → rendered as <p>
- *
- * @returns {{ render: Function }}
+ * @param {string}   cfg.dataKey       localStorage key
+ * @param {Array}    cfg.dataRaw       fallback array
+ * @param {boolean}  cfg.hasPos        whether source entries carry a POS field
+ * @param {Function} cfg.getDict       () => live source array
+ * @param {Function} cfg.addDictEntry  (tuple) => reference; adds to the source
+ *                                      (persist + undo) and returns the reference
+ * @param {Function} cfg.updateDictEntry (oldWord, oldId, word, pos, def) => reference | null;
+ *                                      edits a source entry by its current word/id
+ *                                      (persist + undo) and returns its new reference
+ * @returns {{ render, handleUndo, collectRefIds }}
  */
 export function createTextPage(cfg) {
-  const { dataKey } = cfg;
+  const { hasPos, getDict, addDictEntry, updateDictEntry } = cfg;
+  const sectionsKey = cfg.dataKey;
+  const embedded = !!getDict;
+  const baseLen = hasPos ? 3 : 2;       // source entry length without an id
+  const idIdx   = baseLen;              // index the id occupies when present
+  const defIdx  = hasPos ? 2 : 1;
 
-  /* ── page-local state ── */
-  let data = load(dataKey, cfg.dataRaw);
-  let _editSnapshot = null; // set when a para edit form opens; cleared on save/cancel/delete
-  let adder = null; // open insert panel: { pos, type } | null
+  let sections = load(sectionsKey, cfg.dataRaw);
+  let container = null;
+  /* the single open "add" panel: { sec, pos, mode, q } | null */
+  let adder = null;
   let _adderEnter = false; // animate the adder on its next render
 
-  /* ── undo callback for this page ── */
-  registerUndoCallback((dk, restored) => {
-    if (dk !== dataKey) return;
-    data = restored;
-    _refreshBody();
-  });
+  /* ── helpers ── */
+  const clone = x => JSON.parse(JSON.stringify(x));
+  const loggedIn = () => AUTH.isLoggedIn();
+  const entryId = e => (e.length > baseLen ? e[idIdx] : null);
 
-  /* ── HTML for a single paragraph ── */
-  function _paraHTML(item, idx) {
-    const para = item.text;
-    const isHead = para.startsWith('# ');
-    const isEsc = !isHead && para[0] === '\\' && para[1] === '#' && para[2] === ' ';
+  function commit(before) {
+    save(sectionsKey, sections);
+    pushUndo(sectionsKey, before, clone(sections));
+  }
 
-    let tag, text, displayVal;
-    if (isHead) { tag = 'h1'; text = para.slice(2); displayVal = text; }
-    else if (isEsc) { tag = 'p'; text = '# ' + para.slice(3); displayVal = para.slice(3); }
-    else { tag = 'p'; text = para; displayVal = para; }
+  /* A reference is [word] for an unambiguous word, or [word, id] for a duplicate. */
+  const refHasId = ref => ref.length > 1;
 
-    const editBtn = AUTH.isLoggedIn()
-      ? `<button class="btn btn-sm btn-ghost para-edit-btn"
-           data-para-edit="${idx}" style="margin-bottom:4px">edit</button>`
-      : '';
+  /** Build the reference that points at a given source entry. */
+  function refFor(entry) {
+    const id = entryId(entry);
+    return id != null ? [entry[0], id] : [entry[0]];
+  }
 
-    const editForm = AUTH.isLoggedIn() ? `
-      <div class="edit-collapse para-edit-collapse" data-para-edit-form="${idx}">
+  /**
+   * Resolve a reference against the live source.
+   * Returns { entry } when found, or { deleted: true, word } when the target is gone.
+   */
+  function resolveRef(ref) {
+    const matches = getDict().filter(e => e[0] === ref[0]);
+    const entry = refHasId(ref)
+      ? matches.find(e => entryId(e) === ref[1])
+      : matches.find(e => entryId(e) == null);
+    return entry ? { entry, word: ref[0] } : { deleted: true, word: ref[0] };
+  }
+
+  /** Numeric ids currently held by references; used by the host to avoid id reuse. */
+  function collectRefIds() {
+    const ids = [];
+    sections.forEach(sec => sec[1].forEach(it => {
+      if (Array.isArray(it) && refHasId(it)) ids.push(it[1]);
+    }));
+    return ids;
+  }
+
+  /**
+   * Re-point every reference to (oldWord[, oldId]) at (newWord[, newId]).
+   * Called by the host page when an edit renames a word or changes its id,
+   * so stored references don't go stale.
+   */
+  function updateRef(oldWord, oldId, newWord, newId) {
+    let changed = false;
+    sections.forEach(sec => sec[1].forEach((it, i) => {
+      if (!Array.isArray(it)) return;
+      const sameId = oldId == null ? it.length === 1 : (it.length > 1 && it[1] === oldId);
+      if (it[0] === oldWord && sameId) {
+        sec[1][i] = newId != null ? [newWord, newId] : [newWord];
+        changed = true;
+      }
+    }));
+    if (changed) {
+      save(sectionsKey, sections);
+      if (container && container.querySelector('.sec-view')) render(container);
+    }
+  }
+
+  /* ── item HTML ── */
+
+  function _wordItemHTML(ref, s, i) {
+    const { entry, deleted, word } = resolveRef(ref);
+    const editable = loggedIn() && !deleted; // nothing to edit for a deleted target
+    const actions = loggedIn() ? `
+      <div class="entry-actions">
+        ${editable ? `<button class="btn btn-sm btn-ghost" data-item-edit="${s}.${i}">edit</button>` : ''}
+        <button class="btn btn-sm btn-danger" data-item-del="${s}.${i}" aria-label="remove from section" data-tooltip="remove from section">×</button>
+      </div>` : '';
+    const refId = ref.length > 1 ? ref[1] : null;
+    const wKey = esc(hideKeyForEntry(word, refId, 'word'));
+    const dKey = esc(hideKeyForEntry(word, refId, 'def'));
+    const body = deleted
+      ? `<span class="dict-word" data-hide-key="${wKey}">${esc(word)}</span>
+         <span class="dict-body sec-deleted" data-hide-key="${dKey}">deleted from ${hasPos ? 'dictionary' : 'affixes'}</span>`
+      : `<span class="dict-word" data-hide-key="${wKey}">${esc(entry[0])}</span>
+         <span class="dict-body" data-hide-key="${dKey}">${(hasPos && entry[1]) ? `<span class="dict-pos">${esc(entry[1])} </span>` : ''}${withSnippets(esc(entry[defIdx] ?? ''))}</span>`;
+
+    const posEditField = editable && hasPos ? `
+      <input class="form-input" style="width:80px;flex-shrink:0"
+        data-word-pos="${s}.${i}" value="${esc(entry[1])}" placeholder="pos." />` : '';
+    const editForm = editable ? `
+      <div class="edit-collapse" data-item-form="${s}.${i}">
         <div class="edit-collapse-inner">
-          <div class="inline-edit">
-            <div class="view-toggle adder-toggle" style="margin-bottom:10px">
-              <button type="button" class="view-toggle-btn${!isHead ? ' active' : ''}" data-para-type="${idx}" data-val="p">paragraph</button>
-              <button type="button" class="view-toggle-btn${isHead ? ' active' : ''}" data-para-type="${idx}" data-val="h1">header</button>
-            </div>
-            <textarea class="form-textarea" data-para-ta="${idx}"
-              rows="8">${esc(displayVal)}</textarea>
-            <div class="form-actions">
-              <button class="btn btn-primary btn-sm" data-para-save="${idx}">save</button>
-              <button class="btn btn-sm"             data-para-cancel="${idx}">cancel</button>
-              <button class="btn btn-sm btn-danger"  data-para-del="${idx}">delete</button>
-              <span style="flex:1"></span>
-              <button class="btn btn-sm btn-ghost" data-fmt-b="${idx}" aria-label="Bold (Ctrl+B)"      data-tooltip="Bold (Ctrl+B)"      style="font-weight:600">B</button>
-              <button class="btn btn-sm btn-ghost" data-fmt-i="${idx}" aria-label="Italic (Ctrl+I)"    data-tooltip="Italic (Ctrl+I)"    style="font-style:italic">I</button>
-              <button class="btn btn-sm btn-ghost" data-fmt-u="${idx}" aria-label="Underline (Ctrl+U)" data-tooltip="Underline (Ctrl+U)" style="text-decoration:underline;text-underline-offset:2px">U</button>
-            </div>
+          <div class="entry-edit-row">
+            <input class="form-input" style="width:130px;flex-shrink:0"
+              data-word-word="${s}.${i}" value="${esc(entry[0])}" />
+            ${posEditField}
+            <input class="form-input" style="flex:1;min-width:120px"
+              data-word-def="${s}.${i}" value="${esc(entry[defIdx] ?? '')}" />
+            <button class="btn btn-primary btn-sm" data-item-save="${s}.${i}">save</button>
+            <button class="btn btn-sm" data-item-cancel="${s}.${i}">cancel</button>
           </div>
         </div>
       </div>` : '';
 
     return `
-      <div class="para-block" data-para-idx="${idx}" data-drag-key="${idx}">
-        <div class="para-content" data-para-id="${esc(item.id)}">
-          <${tag}>${withSnippets(text).replace(/\n/g, '<br>')}</${tag}>
-          ${AUTH.isLoggedIn() ? `<div class="para-gutter">${dragHandleHTML()}${editBtn}</div>` : ''}
+      <div class="sec-item sec-word" data-sec="${s}" data-item="${i}" data-drag-key="${s}.${i}">
+        ${loggedIn() ? dragHandleHTML() : ''}
+        <div class="dict-entry">${body}${actions}</div>
+        ${editForm}
+      </div>`;
+  }
+
+  function _paraItemHTML(item, s, i) {
+    const { text, id } = item;
+
+    const editBtn = loggedIn()
+      ? `<button class="btn btn-sm btn-ghost para-edit-btn"
+           data-item-edit="${s}.${i}" style="margin-bottom:4px">edit</button>` : '';
+    const editForm = loggedIn() ? `
+      <div class="edit-collapse para-edit-collapse" data-item-form="${s}.${i}">
+        <div class="edit-collapse-inner"><div class="inline-edit">
+          <textarea class="form-textarea" data-item-ta="${s}.${i}" rows="6">${esc(text)}</textarea>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-sm" data-item-save="${s}.${i}">save</button>
+            <button class="btn btn-sm"             data-item-cancel="${s}.${i}">cancel</button>
+            <button class="btn btn-sm btn-danger"  data-item-del="${s}.${i}">delete</button>
+            <span style="flex:1"></span>
+            <button class="btn btn-sm btn-ghost" data-item-fmt="b.${s}.${i}" aria-label="Bold (Ctrl+B)"      data-tooltip="Bold (Ctrl+B)"      style="font-weight:600">B</button>
+            <button class="btn btn-sm btn-ghost" data-item-fmt="i.${s}.${i}" aria-label="Italic (Ctrl+I)"    data-tooltip="Italic (Ctrl+I)"    style="font-style:italic">I</button>
+            <button class="btn btn-sm btn-ghost" data-item-fmt="u.${s}.${i}" aria-label="Underline (Ctrl+U)" data-tooltip="Underline (Ctrl+U)" style="text-decoration:underline;text-underline-offset:2px">U</button>
+          </div>
+        </div></div>
+      </div>` : '';
+    return `
+      <div class="sec-item para-block" data-sec="${s}" data-item="${i}" data-drag-key="${s}.${i}">
+        <div class="para-content" data-para-id="${esc(id)}">
+          <p>${withSnippets(text).replace(/\n/g, '<br>')}</p>
+          ${loggedIn() ? `<div class="para-gutter">${dragHandleHTML()}${editBtn}</div>` : ''}
         </div>
         ${editForm}
       </div>`;
   }
 
-  /* ── insertion gap + inline adder (mirrors dict-section.js) ── */
+  function _itemHTML(item, s, i) {
+    return Array.isArray(item) ? _wordItemHTML(item, s, i) : _paraItemHTML(item, s, i);
+  }
 
-  function _gapHTML(pos) {
-    if (!AUTH.isLoggedIn()) return '';
-    const active = adder && adder.pos === pos ? ' active' : '';
+  /* ── insertion hint + unified adder ── */
+
+  function _gapHTML(s, pos) {
+    if (!loggedIn()) return '';
+    const active = adder && adder.sec === s && adder.pos === pos ? ' active' : '';
     return `
-      <button class="sec-insert${active}" data-insert="${pos}" aria-label="add here" data-tooltip="add here">
+      <button class="sec-insert${active}" data-insert="${s}.${pos}" aria-label="add here" data-tooltip="add here">
         <span class="sec-insert-line"></span>
         <span class="sec-insert-plus">+</span>
       </button>`;
   }
 
   function _adderHTML() {
-    const type = adder.type || 'p';
-    const tab = (t, label) =>
-      `<button class="view-toggle-btn${type === t ? ' active' : ''}" data-adder-type="${t}">${label}</button>`;
+    const mode = adder.mode;
+    const tab = (m, label) =>
+      `<button class="view-toggle-btn${mode === m ? ' active' : ''}" data-adder-mode="${m}">${label}</button>`;
+    const posField = hasPos ? `
+      <div class="form-group" style="flex-grow:0;min-width:85px">
+        <label class="form-label">pos</label>
+        <input class="form-input" id="adder-word-p" placeholder="n." />
+      </div>` : '';
     return `
       <div class="sec-adder">
         <div class="view-toggle adder-toggle">
-          ${tab('p', 'paragraph')}${tab('h1', 'header')}
+          ${tab('para', 'paragraph')}${tab('head', 'new section')}${embedded ? tab('word', 'word') + tab('assign', 'assign') : ''}
         </div>
-        <textarea class="form-textarea" id="adder-ta" rows="8"
-          placeholder="${type === 'h1' ? 'Heading text…' : 'Paragraph text…'}"></textarea>
+
+        <div class="adder-pane" data-adder-pane="para"${mode === 'para' ? '' : ' hidden'}>
+          <textarea class="form-textarea" id="adder-para-ta" rows="6" placeholder="Paragraph text…"></textarea>
+        </div>
+
+        <div class="adder-pane" data-adder-pane="head"${mode === 'head' ? '' : ' hidden'}>
+          <input class="form-input" id="adder-head-w" placeholder="New section heading…" />
+        </div>
+
+        ${embedded ? `
+        <div class="adder-pane" data-adder-pane="word"${mode === 'word' ? '' : ' hidden'}>
+          <div class="add-form-title">New word</div>
+          <div class="form-row">
+            <div class="form-group" style="flex-grow:0;min-width:130px">
+              <label class="form-label">${hasPos ? 'word' : 'affix'}</label>
+              <input class="form-input" id="adder-word-w" placeholder="${hasPos ? 'vid' : 'vid'}" />
+            </div>
+            ${posField}
+            <div class="form-group" style="flex:1;min-width:120px">
+              <label class="form-label">definition</label>
+              <input class="form-input" id="adder-word-d" placeholder="meaning…" />
+            </div>
+          </div>
+        </div>
+
+        <div class="adder-pane" data-adder-pane="assign"${mode === 'assign' ? '' : ' hidden'}>
+          <input class="form-input" id="adder-assign-search" placeholder="search a word…"
+            autocomplete="off" spellcheck="false" value="${esc(adder.q || '')}" />
+          <div class="assign-results" id="adder-assign-results"></div>
+        </div>
+        ` : ''}
+
         <div class="form-actions">
-          <button class="btn btn-primary btn-sm" id="adder-save">add</button>
-          <button class="btn btn-sm"             id="adder-cancel">cancel</button>
+          <button class="btn btn-primary btn-sm" id="adder-add"${mode === 'assign' ? ' hidden' : ''}>add</button>
+          <button class="btn btn-sm" id="adder-cancel">${mode === 'assign' ? 'done' : 'cancel'}</button>
         </div>
       </div>`;
   }
 
-  /* interleave insertion gaps (and the open adder, if any) between paragraphs */
-  function _parasHTML() {
-    if (!AUTH.isLoggedIn()) return data.map((p, i) => _paraHTML(p, i)).join('');
+  function _itemsHTML(items, s) {
+    if (!loggedIn()) return items.map((it, i) => _itemHTML(it, s, i)).join('');
     let html = '';
-    for (let pos = 0; pos <= data.length; pos++) {
-      html += _gapHTML(pos);
-      if (adder && adder.pos === pos) html += _adderHTML();
-      if (pos < data.length) html += _paraHTML(data[pos], pos);
+    for (let pos = 0; pos <= items.length; pos++) {
+      html += _gapHTML(s, pos);
+      if (adder && adder.sec === s && adder.pos === pos) html += _adderHTML();
+      if (pos < items.length) html += _itemHTML(items[pos], s, pos);
     }
     return html;
   }
 
-  /* ── full page HTML ── */
-  function _pageHTML() {
-    let editControls = '';
-    if (AUTH.isLoggedIn()) {
-      editControls = `
-        <div class="section-actions">
-          <button class="btn btn-sm" id="text-add-btn">+ add paragraph</button>
-          <button class="btn btn-sm" id="text-raw-btn">raw edit</button>
-        </div>
-        <div class="edit-collapse" id="raw-form-collapse">
-          <div class="edit-collapse-inner">
-            <div class="add-form">
-              <div class="add-form-title">
-                Raw edit — paragraphs separated by blank lines; headings start with "# "
-              </div>
-              <textarea class="form-textarea raw-edit-area" id="raw-edit-ta"
-                rows="16" spellcheck="false"></textarea>
-              <div class="form-actions">
-                <button class="btn btn-primary btn-sm" id="raw-apply-btn">apply</button>
-                <button class="btn btn-sm"             id="raw-cancel-btn">cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>`;
-    }
+  /* ── section + body HTML ── */
 
+  function _sectionHTML(sec, s) {
+    const [heading, items] = sec;
+    const headActions = loggedIn()
+      ? `<button class="btn btn-sm btn-ghost" data-head-edit="${s}" style="margin-left:10px">edit</button>` : '';
+    const headForm = loggedIn() ? `
+      <div class="edit-collapse" data-head-form="${s}">
+        <div class="edit-collapse-inner"><div class="inline-edit">
+          <textarea class="form-textarea" data-head-ta="${s}" rows="2">${esc(heading)}</textarea>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-sm" data-head-save="${s}">save</button>
+            <button class="btn btn-sm"             data-head-cancel="${s}">cancel</button>
+            <button class="btn btn-sm"             data-head-up="${s}"   aria-label="move section up"   data-tooltip="move section up">↑</button>
+            <button class="btn btn-sm"             data-head-down="${s}" aria-label="move section down" data-tooltip="move section down">↓</button>
+            <button class="btn btn-sm btn-danger"  data-head-del="${s}">delete section</button>
+          </div>
+        </div></div>
+      </div>` : '';
     return `
-      <main class="page">
-        <div class="page-header">
-          <h1 class="page-title">Meuvid</h1>
-          ${editControls}
-        </div>
-        <div class="text-body${AUTH.isLoggedIn() ? ' editing' : ''}" id="text-body">${_parasHTML()}</div>
-      </main>`;
+      <section class="sec-block" data-sec-block="${s}">
+        <div class="sec-head"><h1>${esc(heading)}</h1>${headActions}</div>
+        ${headForm}
+        <div class="sec-items" data-sec-items="${s}">${_itemsHTML(items, s)}</div>
+      </section>`;
+  }
+
+  function _bodyHTML() {
+    if (!sections.length && !loggedIn())
+      return `<div class="no-results">No sections yet.</div>`;
+    const secs = sections.map((sec, s) => _sectionHTML(sec, s)).join('');
+    const bottom = loggedIn() ? `
+      <div class="section-actions sec-bottom">
+        <button class="btn btn-sm" id="sec-add-para-btn"${sections.length ? '' : ' disabled'}>+ add paragraph</button>
+        <button class="btn btn-sm" id="sec-add-section-btn">+ add section</button>
+        ${embedded ? '' : '<button class="btn btn-sm" id="text-raw-btn">raw edit</button>'}
+      </div>
+      <div class="edit-collapse" id="sec-add-section-form">
+        <div class="edit-collapse-inner"><div class="add-form">
+          <div class="add-form-title">New section heading</div>
+          <textarea class="form-textarea" id="sec-new-head-ta" rows="2" placeholder="Heading text…"></textarea>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-sm" id="sec-new-head-save">add</button>
+            <button class="btn btn-sm" id="sec-new-head-cancel">cancel</button>
+          </div>
+        </div></div>
+      </div>
+      ${embedded ? '' : `
+      <div class="edit-collapse" id="raw-form-collapse">
+        <div class="edit-collapse-inner"><div class="add-form">
+          <div class="add-form-title">Raw edit — paragraphs separated by blank lines; headings start with "# "</div>
+          <textarea class="form-textarea raw-edit-area" id="raw-edit-ta" rows="16" spellcheck="false"></textarea>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-sm" id="raw-apply-btn">apply</button>
+            <button class="btn btn-sm" id="raw-cancel-btn">cancel</button>
+          </div>
+        </div></div>
+      </div>`}` : '';
+    return `<div class="text-body sec-view${loggedIn() ? ' editing' : ''}">${secs}${bottom}</div>`;
+  }
+
+  /* ── parse helpers ── */
+  const _si = v => v.split('.').map(Number);
+
+  /* ── mutations ── */
+  /** Move the item at fromKey ("s.i") to just before toKey ("s.i") */
+  function _dragMoveTo(fromKey, toKey) {
+    const [fs, fi] = _si(fromKey);
+    let [ts, ti] = _si(toKey);
+    if (fs === ts && (ti === fi || ti === fi + 1)) return; // dropped back where it started
+    const before = clone(sections);
+    const [item] = sections[fs][1].splice(fi, 1);
+    if (fs === ts && ti > fi) ti -= 1;
+    sections[ts][1].splice(ti, 0, item);
+    commit(before);
+    render(container);
+  }
+
+  /** Insert a value at the adder's current position; advance so the next add lands after it. */
+  function _insertAtAdder(value) {
+    const before = clone(sections);
+    const scrollTop = container.querySelector('#adder-assign-results')?.scrollTop;
+    sections[adder.sec][1].splice(adder.pos, 0, value);
+    commit(before);
+    adder.pos += 1;
+    render(container);
+    const box = container.querySelector('#adder-assign-results');
+    if (box && scrollTop) box.scrollTop = scrollTop;
+  }
+
+  /** Break the current section at the adder's position: everything from that
+      point on moves into a new section (given heading) inserted right after.
+      The adder then continues inside the new section, at its start. */
+  function _splitIntoNewSection(text) {
+    const before = clone(sections);
+    const items = sections[adder.sec][1];
+    const after = items.splice(adder.pos); // truncates items in place, keeps the rest
+    sections.splice(adder.sec + 1, 0, [text, after]);
+    commit(before);
+    adder.sec += 1;
+    adder.pos = 0;
+    render(container);
   }
 
   /* ── event binding ── */
 
-  /** Rebuild only #text-body and re-attach paragraph events (cheaper than full render). */
-  function _refreshBody() {
-    const el = document.getElementById('text-body');
-    if (!el) return;
-    el.innerHTML = _parasHTML();
-    _bindParaEditEvents();
-    _bindAdderEvents();
-    initDragReorder(el, _dragMoveTo, key => _openParaEdit(parseInt(key)));
-    tagParaHideKeys(el);
-    applyHiding(el);
+  function _openCollapse(el, focusSel) {
+    el?.classList.add('open');
+    const f = focusSel ? el?.querySelector(focusSel) : null;
+    if (f) setTimeout(() => f.focus(), 20);
   }
 
-  /** Move the paragraph at fromKey to just before toKey — same key format as
-      data-drag-key / the gap buttons' data-insert. */
-  function _dragMoveTo(fromKey, toKey) {
-    const from = parseInt(fromKey, 10);
-    let to = parseInt(toKey, 10);
-    if (Number.isNaN(from) || Number.isNaN(to) || to === from || to === from + 1) return;
-    const before = [...data];
-    const [item] = data.splice(from, 1);
-    if (to > from) to -= 1;
-    data.splice(to, 0, item);
-    save(dataKey, data);
-    pushUndo(dataKey, before, [...data]);
-    _refreshBody();
+  /** Close the adder (confirming first if it has typed input). False if the user keeps it. */
+  async function _dismissAdder(ev) {
+    if (!adder) return true;
+    if (!await guardDiscard(container.querySelector('.sec-adder'), ev)) return false;
+    adder = null;
+    /* collapse in place (no rebuild) so it overlaps the form opening */
+    container.querySelector('.sec-insert.active')?.classList.remove('active');
+    animateOut(container.querySelector('.sec-adder'));
+    return true;
   }
 
-  /* delete — commits pending moves along with the deletion as one undo entry */
+  /** Close every open edit form (one confirmation if any has changes). False if the user keeps them. */
+  async function _dismissEdits(ev) {
+    const forms = [...container.querySelectorAll('[data-item-form].open, [data-head-form].open, #sec-add-section-form.open')];
+    if (!forms.length) return true;
+    if (!await guardDiscard(forms.find(formDirty) ?? null, ev)) return false;
+    container.querySelectorAll('.sec-item.editing').forEach(b => b.classList.remove('editing'));
+    forms.forEach(f => { f.classList.remove('open'); discardEditDraft(f); });
+    return true;
+  }
 
-  /** Open the edit form for paragraph idx, closing any other one first. */
-  async function _openParaEdit(idx, ev) {
-    /* an open adder with typed text must be confirmed away first */
-    if (adder) {
-      if (!await guardDiscard(document.querySelector('.sec-adder'), ev)) return;
-      adder = null;
-      /* collapse in place (no rebuild) so it overlaps the editor opening */
-      document.querySelector('.sec-insert.active')?.classList.remove('active');
-      animateOut(document.querySelector('.sec-adder'));
-    }
-    document.querySelectorAll('.para-block.editing').forEach(b => {
+  async function _openItemEdit(s, i, ev) {
+    if (!await _dismissAdder(ev)) return;
+    container.querySelectorAll('.sec-item.editing').forEach(b => {
       b.classList.remove('editing');
-      b.querySelector('.para-edit-collapse')?.classList.remove('open');
+      const f = b.querySelector('[data-item-form]');
+      f?.classList.remove('open');
+      discardEditDraft(f);
     });
-    const block = document.querySelector(`[data-para-idx="${idx}"]`);
-    const editForm = document.querySelector(`[data-para-edit-form="${idx}"]`);
-    if (block && editForm) {
-      revealHidden(block);
-      block.classList.add('editing');
-      editForm.classList.add('open');
-      _editSnapshot = [...data];
-      setEscCleanup(_cancelParaEdit, _paraMoved);
-      const ta = editForm.querySelector('.form-textarea');
-      if (ta) setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 20);
-    }
+    const block = container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`);
+    revealHidden(block);
+    block?.classList.add('editing');
+    _openCollapse(container.querySelector(`[data-item-form="${s}.${i}"]`), '.form-input, .form-textarea');
   }
 
-  /** True when drag-moves in this edit session changed the paragraph order. */
-  function _paraMoved() {
-    const s = _editSnapshot;
-    return !!s && (s.length !== data.length || s.some((x, i) => x !== data[i]));
-  }
-
-  /** Cancel an edit session: animate the form closed, revert moves, rebuild only if order changed. */
-  function _cancelParaEdit() {
-    const snap = _editSnapshot;
-    _editSnapshot = null;
-    document.querySelectorAll('.para-block.editing').forEach(b => {
-      b.classList.remove('editing');
-      b.querySelector('[data-para-edit-form]')?.classList.remove('open');
-      /* discard unsaved edits once the collapse finishes */
-      setTimeout(() => {
-        if (b.classList.contains('editing')) return;
-        const ta = b.querySelector('[data-para-ta]');
-        if (ta) ta.value = ta.defaultValue;
-        const isHead = !!b.querySelector('.para-content > h1');
-        b.querySelectorAll('[data-para-type]').forEach(t =>
-          t.classList.toggle('active', (t.dataset.val === 'h1') === isHead));
-      }, 200);
-    });
-    if (!snap) return;
-    const moved = snap.length !== data.length || snap.some((x, i) => x !== data[i]);
-    data = snap;
-    if (moved) setTimeout(_refreshBody, 200); // wait for the collapse transition
-  }
-
-  /** Bind per-paragraph open/cancel/save/move/delete. Called from _bindEvents and _refreshBody. */
-  function _bindParaEditEvents() {
-    /* open edit form — snapshot data so cancel/Escape can fully revert moves */
-    document.querySelectorAll('[data-para-edit]').forEach(btn =>
-      btn.addEventListener('click', e => _openParaEdit(parseInt(btn.dataset.paraEdit), e))
+  function _bindItemEvents() {
+    container.querySelectorAll('[data-item-edit]').forEach(btn =>
+      btn.addEventListener('click', e => _openItemEdit(..._si(btn.dataset.itemEdit), e))
     );
-
-    /* type toggle — DOM-only, matches the adder's tab pattern */
-    document.querySelectorAll('[data-para-type]').forEach(btn =>
-      btn.addEventListener('click', () => {
-        document.querySelectorAll(`[data-para-type="${btn.dataset.paraType}"]`).forEach(b =>
-          b.classList.toggle('active', b === btn));
-      })
-    );
-
-    /* cancel — revert any in-session moves by restoring the snapshot */
-    document.querySelectorAll('[data-para-cancel]').forEach(btn =>
+    container.querySelectorAll('[data-item-cancel]').forEach(btn =>
       btn.addEventListener('click', async e => {
-        const form = document.querySelector(`[data-para-edit-form="${btn.dataset.paraCancel}"]`);
-        if (!await guardDiscard(form, e, _paraMoved())) return;
-        clearEscCleanup();
-        _cancelParaEdit();
+        const [s, i] = _si(btn.dataset.itemCancel);
+        if (!await guardDiscard(container.querySelector(`[data-item-form="${s}.${i}"]`), e)) return;
+        container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`)?.classList.remove('editing');
+        const f = container.querySelector(`[data-item-form="${s}.${i}"]`);
+        f?.classList.remove('open');
+        discardEditDraft(f);
       })
     );
-
-    /* save — before-state covers the whole session (moves + text change) */
-    document.querySelectorAll('[data-para-save]').forEach(btn =>
+    container.querySelectorAll('[data-item-save]').forEach(btn =>
       btn.addEventListener('click', () => {
-        const i = parseInt(btn.dataset.paraSave);
-        const type = document.querySelector(`[data-para-type="${i}"].active`)?.dataset.val || 'p';
-        const text = (document.querySelector(`[data-para-ta="${i}"]`)?.value || '').trim();
-        if (!text) return;
-        const before = _editSnapshot ?? [...data];
-        data[i] = { text: type === 'h1' ? '# ' + text : text, id: data[i].id };
-        save(dataKey, data);
-        pushUndo(dataKey, before, [...data]);
-        _editSnapshot = null;
-        clearEscCleanup();
-        _refreshBody();
-        revealHidden(document.querySelector(`[data-para-idx="${i}"]`));
+        const [s, i] = _si(btn.dataset.itemSave);
+        const item = sections[s][1][i];
+        if (Array.isArray(item)) {
+          // word item — edits the actual dictionary entry, not just the reference
+          const { entry } = resolveRef(item);
+          if (!entry) return;
+          const word = (container.querySelector(`[data-word-word="${s}.${i}"]`)?.value || '').trim();
+          const pos  = (container.querySelector(`[data-word-pos="${s}.${i}"]`)?.value  || '').trim();
+          const def  = (container.querySelector(`[data-word-def="${s}.${i}"]`)?.value  || '').trim();
+          if (!word || !def) return;
+          updateDictEntry(entry[0], entryId(entry), word, pos, def);
+          render(container);
+          revealHidden(container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`));
+        } else {
+          const text = (container.querySelector(`[data-item-ta="${s}.${i}"]`)?.value || '').trim();
+          if (!text) return;
+          const before = clone(sections);
+          sections[s][1][i] = { text, id: item.id };
+          commit(before);
+          render(container);
+          revealHidden(container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`));
+        }
       })
     );
-
-    /* delete — commits pending moves along with the deletion as one undo entry */
-    document.querySelectorAll('[data-para-del]').forEach(btn =>
+    container.querySelectorAll('[data-item-del]').forEach(btn =>
       btn.addEventListener('click', async e => {
-        revealHidden(document.querySelector(`[data-para-idx="${btn.dataset.paraDel}"]`));
-        if (!await showConfirm('Delete this paragraph?', 'delete', e)) return;
-        const i      = parseInt(btn.dataset.paraDel);
-        const before = _editSnapshot ?? [...data];
-        data = data.filter((_, idx) => idx !== i);
-        save(dataKey, data);
-        pushUndo(dataKey, before, [...data]);
-        _editSnapshot = null;
-        clearEscCleanup();
-        _refreshBody();
+        const [s, i] = _si(btn.dataset.itemDel);
+        const isWord = Array.isArray(sections[s][1][i]);
+        revealHidden(container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`));
+        if (!await showConfirm(
+          isWord ? 'Remove this word from the section?' : 'Delete this paragraph?',
+          isWord ? 'remove' : 'delete', e)) return;
+        const before = clone(sections);
+        sections[s][1].splice(i, 1);
+        commit(before);
+        render(container);
       })
     );
-
-    /* B/I/U formatting buttons */
-    document.querySelectorAll('[data-fmt-b]').forEach(btn =>
+    container.querySelectorAll('[data-item-fmt]').forEach(btn =>
       btn.addEventListener('click', () => {
-        const ta = document.querySelector(`[data-para-ta="${btn.dataset.fmtB}"]`);
-        if (ta) wrapSelectedText(ta, '<b>', '</b>');
+        const [kind, s, i] = btn.dataset.itemFmt.split('.');
+        const ta = container.querySelector(`[data-item-ta="${s}.${i}"]`);
+        if (ta) wrapSelectedText(ta, `<${kind}>`, `</${kind}>`);
       })
     );
-    document.querySelectorAll('[data-fmt-i]').forEach(btn =>
-      btn.addEventListener('click', () => {
-        const ta = document.querySelector(`[data-para-ta="${btn.dataset.fmtI}"]`);
-        if (ta) wrapSelectedText(ta, '<i>', '</i>');
-      })
-    );
-    document.querySelectorAll('[data-fmt-u]').forEach(btn =>
-      btn.addEventListener('click', () => {
-        const ta = document.querySelector(`[data-para-ta="${btn.dataset.fmtU}"]`);
-        if (ta) wrapSelectedText(ta, '<u>', '</u>');
-      })
-    );
-
-    /* Ctrl+Enter to save; Ctrl+B/I/U for inline formatting — on each para textarea */
-    document.querySelectorAll('[data-para-ta]').forEach(ta => {
+    container.querySelectorAll('[data-item-ta]').forEach(ta =>
       ta.addEventListener('keydown', e => {
         const ctrl = e.ctrlKey || e.metaKey;
-        if (ctrl && e.key === 'Enter') { e.preventDefault(); document.querySelector(`[data-para-save="${ta.dataset.paraTa}"]`)?.click(); }
+        if (ctrl && e.key === 'Enter') { e.preventDefault(); container.querySelector(`[data-item-save="${ta.dataset.itemTa}"]`)?.click(); }
         if (ctrl && e.key === 'b') { e.preventDefault(); wrapSelectedText(ta, '<b>', '</b>'); }
         if (ctrl && e.key === 'i') { e.preventDefault(); wrapSelectedText(ta, '<i>', '</i>'); }
         if (ctrl && e.key === 'u') { e.preventDefault(); wrapSelectedText(ta, '<u>', '</u>'); }
-      });
-    });
+      })
+    );
+
+    /* Enter in word-edit inputs → trigger save */
+    container.querySelectorAll('[data-word-word], [data-word-pos], [data-word-def]').forEach(input =>
+      input.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const idx = input.dataset.wordWord ?? input.dataset.wordPos ?? input.dataset.wordDef;
+        container.querySelector(`[data-item-save="${idx}"]`)?.click();
+      })
+    );
   }
 
-  /* open (or toggle closed) the insert adder at a gap; closes raw-edit if open */
-  async function _openAdder(pos, ev) {
-    if (adder && adder.pos === pos) { adder = null; _refreshBody(); return; }
-    /* close an open paragraph editor first (confirming if it has changes) */
-    const body = document.getElementById('text-body');
-    const closing = captureOpenForms(body); // replayed after the rebuild
-    const block = document.querySelector('.para-block.editing');
-    if (block) {
-      const form = block.querySelector('[data-para-edit-form]');
-      if (!await guardDiscard(form, ev, _paraMoved())) return;
-      clearEscCleanup();
-      _cancelParaEdit();
-    }
-    adder = { pos, type: 'p' };
+  function _bindHeadEvents() {
+    container.querySelectorAll('[data-head-edit]').forEach(btn =>
+      btn.addEventListener('click', async e => {
+        if (!await _dismissAdder(e)) return;
+        _openCollapse(container.querySelector(`[data-head-form="${btn.dataset.headEdit}"]`), '.form-textarea');
+      })
+    );
+    container.querySelectorAll('[data-head-cancel]').forEach(btn =>
+      btn.addEventListener('click', async e => {
+        const f = container.querySelector(`[data-head-form="${btn.dataset.headCancel}"]`);
+        if (!await guardDiscard(f, e)) return;
+        f?.classList.remove('open');
+        discardEditDraft(f);
+      })
+    );
+    container.querySelectorAll('[data-head-ta]').forEach(ta =>
+      ta.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          container.querySelector(`[data-head-save="${ta.dataset.headTa}"]`)?.click();
+        }
+      })
+    );
+    container.querySelectorAll('[data-head-save]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const s = Number(btn.dataset.headSave);
+        const text = (container.querySelector(`[data-head-ta="${s}"]`)?.value || '').trim();
+        if (!text) return;
+        const before = clone(sections);
+        sections[s][0] = text;
+        commit(before);
+        render(container);
+      })
+    );
+    container.querySelectorAll('[data-head-up]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const s = Number(btn.dataset.headUp);
+        if (s <= 0) return;
+        const before = clone(sections);
+        [sections[s - 1], sections[s]] = [sections[s], sections[s - 1]];
+        commit(before); render(container);
+      })
+    );
+    container.querySelectorAll('[data-head-down]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const s = Number(btn.dataset.headDown);
+        if (s >= sections.length - 1) return;
+        const before = clone(sections);
+        [sections[s + 1], sections[s]] = [sections[s], sections[s + 1]];
+        commit(before); render(container);
+      })
+    );
+    container.querySelectorAll('[data-head-del]').forEach(btn =>
+      btn.addEventListener('click', async e => {
+        const s = Number(btn.dataset.headDel);
+        const n = sections[s][1].length;
+        if (!await showConfirm(
+          n ? `Delete section "${sections[s][0]}" and its ${n} entr${n === 1 ? 'y' : 'ies'}?`
+            : `Delete section "${sections[s][0]}"?`, 'delete', e)) return;
+        const before = clone(sections);
+        sections.splice(s, 1);
+        if (adder && adder.sec === s) adder = null;
+        commit(before); render(container);
+      })
+    );
+  }
+
+  /* open the unified adder at a gap (or toggle it closed) */
+  async function _openAdder(s, pos, mode, ev) {
+    if (adder && adder.sec === s && adder.pos === pos) { adder = null; render(container); return; }
+    const closing = captureOpenForms(container); // replayed after the rebuild
+    if (!await _dismissEdits(ev)) return;
+    adder = { sec: s, pos, mode: mode || 'para', q: '', sel: 0 };
     _adderEnter = true;
-    document.getElementById('raw-form-collapse')?.classList.remove('open');
-    const rawBtn = document.getElementById('text-raw-btn');
-    if (rawBtn) rawBtn.textContent = 'raw edit';
-    _refreshBody();
-    replayCollapse(document.getElementById('text-body'), closing);
+    render(container);
+    replayCollapse(container, closing);
+  }
+
+  function _bindAdderEvents() {
+    container.querySelectorAll('[data-insert]').forEach(btn =>
+      btn.addEventListener('click', e => { const [s, p] = _si(btn.dataset.insert); _openAdder(s, p, undefined, e); })
+    );
+    if (!adder) return;
+    if (_adderEnter) { _adderEnter = false; animateIn(container.querySelector('.sec-adder')); }
+
+    /* mode toggle — DOM-only, preserves typed input */
+    container.querySelectorAll('[data-adder-mode]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        adder.mode = btn.dataset.adderMode;
+        container.querySelectorAll('[data-adder-mode]').forEach(b =>
+          b.classList.toggle('active', b.dataset.adderMode === adder.mode));
+        container.querySelectorAll('[data-adder-pane]').forEach(p =>
+          p.hidden = p.dataset.adderPane !== adder.mode);
+        const addBtn = container.querySelector('#adder-add');
+        if (addBtn) addBtn.hidden = adder.mode === 'assign';
+        const cancel = container.querySelector('#adder-cancel');
+        if (cancel) cancel.textContent = adder.mode === 'assign' ? 'done' : 'cancel';
+        const focus = adder.mode === 'para' ? '#adder-para-ta'
+                    : adder.mode === 'head' ? '#adder-head-w'
+                    : adder.mode === 'word' ? '#adder-word-w' : '#adder-assign-search';
+        container.querySelector(focus)?.focus();
+        if (adder.mode === 'assign') { adder.sel = 0; _refreshAssign(); }
+      })
+    );
+
+    container.querySelector('#adder-cancel')?.addEventListener('click', () => { adder = null; render(container); });
+    container.querySelector('#adder-add')?.addEventListener('click', _submitAdder);
+
+    const paraTa = container.querySelector('#adder-para-ta');
+    if (paraTa) paraTa.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); _submitAdder(); }
+    });
+    container.querySelectorAll('#adder-head-w, #adder-word-w, #adder-word-p, #adder-word-d').forEach(inp =>
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') _submitAdder(); }));
+
+    const search = container.querySelector('#adder-assign-search');
+    if (search) {
+      let t = null;
+      search.addEventListener('input', e => {
+        adder.q = e.target.value;
+        adder.sel = 0;
+        clearTimeout(t); t = setTimeout(_refreshAssign, 120);
+      });
+      /* the one-line field is free, so arrows drive the result selection */
+      search.addEventListener('keydown', e => {
+        if (e.key === 'ArrowDown')    { e.preventDefault(); _moveAssignSel(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); _moveAssignSel(-1); }
+        else if (e.key === 'Enter')   { e.preventDefault(); container.querySelector('.assign-result.selected')?.click(); }
+      });
+    }
+
+    /* focus + populate the open pane */
+    const focusSel = adder.mode === 'para' ? '#adder-para-ta'
+                   : adder.mode === 'head' ? '#adder-head-w'
+                   : adder.mode === 'word' ? '#adder-word-w' : '#adder-assign-search';
+    const fe = container.querySelector(focusSel);
+    if (fe) setTimeout(() => { fe.focus(); if (fe.value) fe.setSelectionRange(fe.value.length, fe.value.length); }, 20);
+    if (adder.mode === 'assign') _refreshAssign();
   }
 
   function _submitAdder() {
     if (!adder) return;
-    const type = adder.type || 'p';
-    const text = (document.getElementById('adder-ta')?.value || '').trim();
-    if (!text) return;
-    const before = [...data];
-    data.splice(adder.pos, 0, { text: type === 'h1' ? '# ' + text : text, id: randId() });
-    save(dataKey, data);
-    pushUndo(dataKey, before, [...data]);
-    adder.pos += 1; // next add lands after this one
-    _refreshBody();
+    if (adder.mode === 'para') {
+      const text = (container.querySelector('#adder-para-ta')?.value || '').trim();
+      if (!text) return;
+      _insertAtAdder({ text, id: randId() });
+    } else if (adder.mode === 'head') {
+      const text = (container.querySelector('#adder-head-w')?.value || '').trim();
+      if (!text) return;
+      _splitIntoNewSection(text);
+    } else if (adder.mode === 'word') {
+      const w = (container.querySelector('#adder-word-w')?.value || '').trim();
+      const p = (container.querySelector('#adder-word-p')?.value || '').trim();
+      const d = (container.querySelector('#adder-word-d')?.value || '').trim();
+      if (!w || !d) return;
+      const ref = addDictEntry(hasPos ? [w, p, d] : [w, d]);
+      _insertAtAdder(clone(ref));
+    }
   }
 
-  function _bindAdderEvents() {
-    document.querySelectorAll('[data-insert]').forEach(btn =>
-      btn.addEventListener('click', e => _openAdder(parseInt(btn.dataset.insert), e))
-    );
-    if (!adder) return;
-    if (_adderEnter) { _adderEnter = false; animateIn(document.querySelector('.sec-adder')); }
-
-    document.querySelectorAll('[data-adder-type]').forEach(btn =>
-      btn.addEventListener('click', () => {
-        adder.type = btn.dataset.adderType;
-        document.querySelectorAll('[data-adder-type]').forEach(b =>
-          b.classList.toggle('active', b.dataset.adderType === adder.type));
-        const ta = document.getElementById('adder-ta');
-        if (ta) ta.placeholder = adder.type === 'h1' ? 'Heading text…' : 'Paragraph text…';
+  function _refreshAssign() {
+    const box = container.querySelector('#adder-assign-results');
+    if (!box) return;
+    const results = filterEntries(getDict(), adder.q || '', hasPos);
+    if (!results.length) { box.innerHTML = `<div class="sec-empty">No matches.</div>`; return; }
+    box.innerHTML = results.map(e => {
+      const pos = (hasPos && e[1]) ? `<span class="dict-pos">${esc(e[1])} </span>` : '';
+      const wKey = esc(hideKeyForEntry(e[0], entryId(e), 'word'));
+      const dKey = esc(hideKeyForEntry(e[0], entryId(e), 'def'));
+      return `
+        <button class="assign-result" data-assign-pick="${encodeURIComponent(JSON.stringify(e))}">
+          <span class="dict-word" data-hide-key="${wKey}">${esc(e[0])}</span>
+          <span class="dict-body" data-hide-key="${dKey}">${pos}${withSnippets(esc(e[defIdx] ?? ''))}</span>
+        </button>`;
+    }).join('');
+    box.querySelectorAll('[data-assign-pick]').forEach(btn =>
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        _insertAtAdder(refFor(JSON.parse(decodeURIComponent(btn.dataset.assignPick))));
       })
     );
+    _setAssignSel(adder.sel || 0);
+    applyHiding(box);
+  }
 
-    const ta = document.getElementById('adder-ta');
-    if (ta) {
-      ta.addEventListener('keydown', e => {
-        const ctrl = e.ctrlKey || e.metaKey;
-        if (ctrl && e.key === 'Enter') { e.preventDefault(); _submitAdder(); }
-        if (ctrl && e.key === 'b') { e.preventDefault(); wrapSelectedText(ta, '<b>', '</b>'); }
-        if (ctrl && e.key === 'i') { e.preventDefault(); wrapSelectedText(ta, '<i>', '</i>'); }
-        if (ctrl && e.key === 'u') { e.preventDefault(); wrapSelectedText(ta, '<u>', '</u>'); }
+  /* Highlight the n-th assign result, clamped to range. */
+  function _setAssignSel(n) {
+    const els = container.querySelectorAll('.assign-result');
+    if (!els.length) return;
+    adder.sel = Math.max(0, Math.min(n, els.length - 1));
+    els.forEach((el, i) => el.classList.toggle('selected', i === adder.sel));
+    els[adder.sel].scrollIntoView({ block: 'nearest' });
+  }
+
+  function _moveAssignSel(delta) {
+    _setAssignSel((adder.sel || 0) + delta);
+  }
+
+  function _bindBottomEvents() {
+    const addSec = container.querySelector('#sec-add-section-btn');
+    if (addSec) addSec.addEventListener('click', async e => {
+      const form = container.querySelector('#sec-add-section-form');
+      if (form?.classList.contains('open')) { form.classList.remove('open'); return; }
+      if (!await _dismissAdder(e)) return;
+      _openCollapse(container.querySelector('#sec-add-section-form'), '#sec-new-head-ta'); // re-query: render may have rebuilt it
+    });
+    const newSave = container.querySelector('#sec-new-head-save');
+    if (newSave) newSave.addEventListener('click', _addSection);
+    const newTa = container.querySelector('#sec-new-head-ta');
+    if (newTa) newTa.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); _addSection(); }
+    });
+    const newCancel = container.querySelector('#sec-new-head-cancel');
+    if (newCancel) newCancel.addEventListener('click', async e => {
+      const f = container.querySelector('#sec-add-section-form');
+      if (!await guardDiscard(f, e)) return;
+      f?.classList.remove('open');
+      discardEditDraft(f);
+    });
+
+    /* raw edit (standalone only): the whole page as blank-line-separated text */
+    const rawBtn = container.querySelector('#text-raw-btn');
+    if (rawBtn) {
+      const rawForm = container.querySelector('#raw-form-collapse');
+      const rawTa = container.querySelector('#raw-edit-ta');
+      const closeRaw = () => { rawForm.classList.remove('open'); rawBtn.textContent = 'raw edit'; };
+      rawBtn.addEventListener('click', async e => {
+        if (rawForm.classList.contains('open')) { closeRaw(); return; }
+        if (!await _dismissAdder(e) || !await _dismissEdits(e)) return;
+        rawTa.value = _sectionsToRaw();
+        _openCollapse(rawForm, '#raw-edit-ta');
+        rawBtn.textContent = 'close raw edit';
       });
-      setTimeout(() => ta.focus(), 20);
+      rawTa.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          container.querySelector('#raw-apply-btn').click();
+        }
+      });
+      container.querySelector('#raw-apply-btn').addEventListener('click', () => {
+        const before = clone(sections);
+        sections = _rawToSections(rawTa.value);
+        commit(before);
+        render(container);
+      });
+      container.querySelector('#raw-cancel-btn').addEventListener('click', closeRaw);
     }
 
-    document.getElementById('adder-save')?.addEventListener('click', _submitAdder);
-    document.getElementById('adder-cancel')?.addEventListener('click', () => { adder = null; _refreshBody(); });
+    /* "+ add paragraph" → open the unified adder at the end of the last section */
+    const addPara = container.querySelector('#sec-add-para-btn');
+    if (addPara) addPara.addEventListener('click', e => {
+      if (!sections.length) return;
+      const last = sections.length - 1;
+      _openAdder(last, sections[last][1].length, 'para', e);
+    });
   }
 
-  /* Escape closes the adder; only acts while it's open. */
-  registerEscHandler(() => {
-    if (!adder) return false;
-    adder = null;
-    _refreshBody();
-    return true;
-  });
+  /* Raw edit text: headings as "# heading" paragraphs, items as their text.
+     Rewrites the whole page, so old and new paragraphs can't be paired: every
+     paragraph gets a fresh id (which resets its spoiler state). Text before the
+     first heading goes under "tbd". */
+  function _sectionsToRaw() {
+    return sections.map(([heading, items]) =>
+      ['# ' + heading, ...items.map(it => it.text)].join('\n\n')).join('\n\n');
+  }
 
-  function _bindEvents() {
-    /* "+ add paragraph" → open the inline adder at the end */
-    const addBtn = document.getElementById('text-add-btn');
-    if (addBtn) addBtn.addEventListener('click', e => _openAdder(data.length, e));
-
-    /* toggle raw-edit */
-    const rawBtn = document.getElementById('text-raw-btn');
-    if (rawBtn) rawBtn.addEventListener('click', () => {
-      const rawCollapse = document.getElementById('raw-form-collapse');
-      const isOpen = rawCollapse?.classList.contains('open');
-      if (isOpen) {
-        rawCollapse.classList.remove('open');
-        rawBtn.textContent = 'raw edit';
-      } else {
-        /* populate textarea with current data before revealing */
-        const rawTa = document.getElementById('raw-edit-ta');
-        if (rawTa) rawTa.value = data.map(p => p.text).join('\n\n');
-        rawCollapse?.classList.add('open');
-        rawBtn.textContent = 'close raw edit';
-        /* close the inline adder if open */
-        adder = null;
-        _refreshBody();
-        setTimeout(() => document.getElementById('raw-edit-ta')?.focus(), 20);
-      }
+  function _rawToSections(raw) {
+    const out = [];
+    raw.split('\n\n').map(t => t.trim()).filter(Boolean).forEach(text => {
+      if (text.startsWith('# ')) { out.push([text.slice(2), []]); return; }
+      if (!out.length) out.push(['tbd', []]);
+      out[out.length - 1][1].push({ text, id: randId() });
     });
+    return out;
+  }
 
-    /* raw-edit textarea: Ctrl+Enter to apply */
-    const rawEditTa = document.getElementById('raw-edit-ta');
-    if (rawEditTa) rawEditTa.addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        document.getElementById('raw-apply-btn')?.click();
-      }
-    });
+  function _addSection() {
+    const ta = container.querySelector('#sec-new-head-ta');
+    const text = (ta?.value || '').trim();
+    if (!text) return;
+    const before = clone(sections);
+    sections.push([text, []]);
+    commit(before);
+    render(container);
+  }
 
-    /* raw-edit: apply */
-    const rawApply = document.getElementById('raw-apply-btn');
-    if (rawApply) rawApply.addEventListener('click', () => {
-      const rawTa = document.getElementById('raw-edit-ta');
-      const before = [...data];
-      // Raw edit rewrites the whole page at once, so old paragraphs can't be
-      // reliably paired to new ones — every paragraph gets a fresh id here,
-      // which resets spoiler state on this page. Expected for a bulk rewrite.
-      data = (rawTa?.value || '').split('\n\n').map(s => s.trim()).filter(Boolean)
-        .map(text => ({ text, id: randId() }));
-      save(dataKey, data);
-      pushUndo(dataKey, before, [...data]);
-      document.getElementById('raw-form-collapse')?.classList.remove('open');
-      const rawBtnEl = document.getElementById('text-raw-btn');
-      if (rawBtnEl) rawBtnEl.textContent = 'raw edit';
-      _refreshBody();
-    });
-
-    /* raw-edit: cancel */
-    const rawCancel = document.getElementById('raw-cancel-btn');
-    if (rawCancel) rawCancel.addEventListener('click', () => {
-      document.getElementById('raw-form-collapse')?.classList.remove('open');
-      const rawBtnEl = document.getElementById('text-raw-btn');
-      if (rawBtnEl) rawBtnEl.textContent = 'raw edit';
-    });
-
-    _bindParaEditEvents();
+  /* ── public API ── */
+  function render(into) {
+    container = into || container;
+    if (!container) return;
+    container.innerHTML = _bodyHTML();
+    _bindHeadEvents();
+    _bindItemEvents();
     _bindAdderEvents();
+    _bindBottomEvents();
+    initDragReorder(container, _dragMoveTo, key => _openItemEdit(..._si(key)));
+    tagParaHideKeys(container);
+    applyHiding(container);
   }
 
-  /* ── public render ── */
-  function render() {
-    document.getElementById('app').innerHTML = _pageHTML();
-    _bindEvents();
-    initDragReorder(document.getElementById('text-body'), _dragMoveTo, key => _openParaEdit(parseInt(key)));
-    tagParaHideKeys(document.getElementById('app'));
-    applyHiding(document.getElementById('app'));
+  /* Escape closes the adder, then any open heading or add-section form.
+     Only acts while the section view is on screen. */
+  function _handleEsc() {
+    if (!container || !container.querySelector('.sec-view')) return false;
+    if (adder) { adder = null; render(container); return true; }
+    const open = container.querySelector('[data-head-form].open, #sec-add-section-form.open');
+    if (open) { open.classList.remove('open'); discardEditDraft(open); return true; }
+    const editing = container.querySelectorAll('.sec-item.editing');
+    if (editing.length) {
+      editing.forEach(b => {
+        b.classList.remove('editing');
+        const f = b.querySelector('[data-item-form]');
+        f?.classList.remove('open');
+        discardEditDraft(f);
+      });
+      return true;
+    }
+    return false;
+  }
+  registerEscHandler(_handleEsc);
+
+  function handleUndo(dk, restored) {
+    if (dk !== sectionsKey) return false;
+    sections = restored;
+    if (adder && adder.sec >= sections.length) adder = null;
+    render(container);
+    return true;
   }
 
-  return { render };
+  /* Standalone pages own their undo callback and page shell; an embedding host
+     (the dictionary) provides both. */
+  if (!embedded) registerUndoCallback(handleUndo);
+
+  function renderPage(into) {
+    if (into || embedded) { render(into); return; }
+    document.getElementById('app').innerHTML = `
+      <main class="page">
+        <div class="page-header">
+          <h1 class="page-title">Meuvid</h1>
+        </div>
+        <div id="text-root"></div>
+      </main>`;
+    render(document.getElementById('text-root'));
+  }
+
+  return { render: renderPage, handleUndo, collectRefIds, updateRef };
 }
