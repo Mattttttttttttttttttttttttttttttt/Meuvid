@@ -14,9 +14,10 @@
    ================================================================ */
 
 import {
-  esc, withSnippets, load, save, pushUndo, wrapSelectedText, showConfirm,
-  hideKeyForEntry, randId, tagParaHideKeys, applyHiding, revealHidden,
-  dragHandleHTML, initDragReorder, registerEscHandler, filterEntries,
+  esc, withSnippets, load, save, pushUndo, wrapSelectedText, showConfirm, hideKeyForEntry,
+  randId, tagParaHideKeys, applyHiding, revealHidden, dragHandleHTML, initDragReorder,
+  registerEscHandler, filterEntries, discardEditDraft, guardDiscard, formDirty,
+  animateIn, animateOut, captureOpenForms, replayCollapse,
 } from './utils.js';
 import { AUTH } from './auth.js';
 
@@ -43,6 +44,7 @@ export function createDictSection(cfg) {
   let container = null;
   /* the single open "add" panel: { sec, pos, mode, q } | null */
   let adder = null;
+  let _adderEnter = false; // animate the adder on its next render
 
   /* ── helpers ── */
   const clone = x => JSON.parse(JSON.stringify(x));
@@ -402,10 +404,34 @@ export function createDictSection(cfg) {
     if (f) setTimeout(() => f.focus(), 20);
   }
 
-  function _openItemEdit(s, i) {
+  /** Close the adder (confirming first if it has typed input). False if the user keeps it. */
+  async function _dismissAdder(ev) {
+    if (!adder) return true;
+    if (!await guardDiscard(container.querySelector('.sec-adder'), ev)) return false;
+    adder = null;
+    /* collapse in place (no rebuild) so it overlaps the form opening */
+    container.querySelector('.sec-insert.active')?.classList.remove('active');
+    animateOut(container.querySelector('.sec-adder'));
+    return true;
+  }
+
+  /** Close every open edit form (one confirmation if any has changes). False if the user keeps them. */
+  async function _dismissEdits(ev) {
+    const forms = [...container.querySelectorAll('[data-item-form].open, [data-head-form].open, #sec-add-section-form.open')];
+    if (!forms.length) return true;
+    if (!await guardDiscard(forms.find(formDirty) ?? null, ev)) return false;
+    container.querySelectorAll('.sec-item.editing').forEach(b => b.classList.remove('editing'));
+    forms.forEach(f => { f.classList.remove('open'); discardEditDraft(f); });
+    return true;
+  }
+
+  async function _openItemEdit(s, i, ev) {
+    if (!await _dismissAdder(ev)) return;
     container.querySelectorAll('.sec-item.editing').forEach(b => {
       b.classList.remove('editing');
-      b.querySelector('[data-item-form]')?.classList.remove('open');
+      const f = b.querySelector('[data-item-form]');
+      f?.classList.remove('open');
+      discardEditDraft(f);
     });
     const block = container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`);
     revealHidden(block);
@@ -415,13 +441,16 @@ export function createDictSection(cfg) {
 
   function _bindItemEvents() {
     container.querySelectorAll('[data-item-edit]').forEach(btn =>
-      btn.addEventListener('click', () => _openItemEdit(..._si(btn.dataset.itemEdit)))
+      btn.addEventListener('click', e => _openItemEdit(..._si(btn.dataset.itemEdit), e))
     );
     container.querySelectorAll('[data-item-cancel]').forEach(btn =>
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async e => {
         const [s, i] = _si(btn.dataset.itemCancel);
+        if (!await guardDiscard(container.querySelector(`[data-item-form="${s}.${i}"]`), e)) return;
         container.querySelector(`.sec-item[data-sec="${s}"][data-item="${i}"]`)?.classList.remove('editing');
-        container.querySelector(`[data-item-form="${s}.${i}"]`)?.classList.remove('open');
+        const f = container.querySelector(`[data-item-form="${s}.${i}"]`);
+        f?.classList.remove('open');
+        discardEditDraft(f);
       })
     );
     container.querySelectorAll('[data-item-save]').forEach(btn =>
@@ -493,12 +522,18 @@ export function createDictSection(cfg) {
 
   function _bindHeadEvents() {
     container.querySelectorAll('[data-head-edit]').forEach(btn =>
-      btn.addEventListener('click', () =>
-        _openCollapse(container.querySelector(`[data-head-form="${btn.dataset.headEdit}"]`), '.form-textarea'))
+      btn.addEventListener('click', async e => {
+        if (!await _dismissAdder(e)) return;
+        _openCollapse(container.querySelector(`[data-head-form="${btn.dataset.headEdit}"]`), '.form-textarea');
+      })
     );
     container.querySelectorAll('[data-head-cancel]').forEach(btn =>
-      btn.addEventListener('click', () =>
-        container.querySelector(`[data-head-form="${btn.dataset.headCancel}"]`)?.classList.remove('open'))
+      btn.addEventListener('click', async e => {
+        const f = container.querySelector(`[data-head-form="${btn.dataset.headCancel}"]`);
+        if (!await guardDiscard(f, e)) return;
+        f?.classList.remove('open');
+        discardEditDraft(f);
+      })
     );
     container.querySelectorAll('[data-head-ta]').forEach(ta =>
       ta.addEventListener('keydown', e => {
@@ -553,17 +588,22 @@ export function createDictSection(cfg) {
   }
 
   /* open the unified adder at a gap (or toggle it closed) */
-  function _openAdder(s, pos, mode) {
-    if (adder && adder.sec === s && adder.pos === pos) { adder = null; }
-    else { adder = { sec: s, pos, mode: mode || 'para', q: '', sel: 0 }; }
+  async function _openAdder(s, pos, mode, ev) {
+    if (adder && adder.sec === s && adder.pos === pos) { adder = null; render(container); return; }
+    const closing = captureOpenForms(container); // replayed after the rebuild
+    if (!await _dismissEdits(ev)) return;
+    adder = { sec: s, pos, mode: mode || 'para', q: '', sel: 0 };
+    _adderEnter = true;
     render(container);
+    replayCollapse(container, closing);
   }
 
   function _bindAdderEvents() {
     container.querySelectorAll('[data-insert]').forEach(btn =>
-      btn.addEventListener('click', () => { const [s, p] = _si(btn.dataset.insert); _openAdder(s, p); })
+      btn.addEventListener('click', e => { const [s, p] = _si(btn.dataset.insert); _openAdder(s, p, undefined, e); })
     );
     if (!adder) return;
+    if (_adderEnter) { _adderEnter = false; animateIn(container.querySelector('.sec-adder')); }
 
     /* mode toggle — DOM-only, preserves typed input */
     container.querySelectorAll('[data-adder-mode]').forEach(btn =>
@@ -680,10 +720,11 @@ export function createDictSection(cfg) {
 
   function _bindBottomEvents() {
     const addSec = container.querySelector('#sec-add-section-btn');
-    if (addSec) addSec.addEventListener('click', () => {
+    if (addSec) addSec.addEventListener('click', async e => {
       const form = container.querySelector('#sec-add-section-form');
-      if (form?.classList.contains('open')) form.classList.remove('open');
-      else _openCollapse(form, '#sec-new-head-ta');
+      if (form?.classList.contains('open')) { form.classList.remove('open'); return; }
+      if (!await _dismissAdder(e)) return;
+      _openCollapse(container.querySelector('#sec-add-section-form'), '#sec-new-head-ta'); // re-query: render may have rebuilt it
     });
     const newSave = container.querySelector('#sec-new-head-save');
     if (newSave) newSave.addEventListener('click', _addSection);
@@ -692,15 +733,19 @@ export function createDictSection(cfg) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); _addSection(); }
     });
     const newCancel = container.querySelector('#sec-new-head-cancel');
-    if (newCancel) newCancel.addEventListener('click', () =>
-      container.querySelector('#sec-add-section-form')?.classList.remove('open'));
+    if (newCancel) newCancel.addEventListener('click', async e => {
+      const f = container.querySelector('#sec-add-section-form');
+      if (!await guardDiscard(f, e)) return;
+      f?.classList.remove('open');
+      discardEditDraft(f);
+    });
 
     /* "+ add paragraph" → open the unified adder at the end of the last section */
     const addPara = container.querySelector('#sec-add-para-btn');
-    if (addPara) addPara.addEventListener('click', () => {
+    if (addPara) addPara.addEventListener('click', e => {
       if (!sections.length) return;
       const last = sections.length - 1;
-      _openAdder(last, sections[last][1].length, 'para');
+      _openAdder(last, sections[last][1].length, 'para', e);
     });
   }
 
@@ -734,7 +779,17 @@ export function createDictSection(cfg) {
     if (!container || !container.querySelector('.sec-view')) return false;
     if (adder) { adder = null; render(container); return true; }
     const open = container.querySelector('[data-head-form].open, #sec-add-section-form.open');
-    if (open) { open.classList.remove('open'); return true; }
+    if (open) { open.classList.remove('open'); discardEditDraft(open); return true; }
+    const editing = container.querySelectorAll('.sec-item.editing');
+    if (editing.length) {
+      editing.forEach(b => {
+        b.classList.remove('editing');
+        const f = b.querySelector('[data-item-form]');
+        f?.classList.remove('open');
+        discardEditDraft(f);
+      });
+      return true;
+    }
     return false;
   }
   registerEscHandler(_handleEsc);

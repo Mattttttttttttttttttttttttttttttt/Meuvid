@@ -3,8 +3,8 @@
    ================================================================ */
 
 import {
-  esc, withSnippets, load, save, registerUndoCallback, pushUndo, showConfirm,
-  hideKeyForEntry, applyHiding, revealHidden, filterEntries,
+  esc, withSnippets, load, save, registerUndoCallback, pushUndo, showConfirm, hideKeyForEntry,
+  applyHiding, revealHidden, filterEntries, discardEditDraft, guardDiscard,
   SVG_QUESTION, SVG_LIST, SVG_SECTION,
 } from './utils.js';
 import { AUTH } from './auth.js';
@@ -284,7 +284,9 @@ export function createDictPage(cfg) {
         /* close any currently open edit form first */
         document.querySelectorAll('.dict-entry-wrapper.editing').forEach(w => {
           w.classList.remove('editing');
-          w.querySelector('.edit-collapse')?.classList.remove('open');
+          const f = w.querySelector('.edit-collapse');
+          f?.classList.remove('open');
+          discardEditDraft(f);
         });
         const wrapper  = document.querySelector(`[data-entry-idx="${idx}"]`);
         const editForm = document.querySelector(`[data-edit-form="${idx}"]`);
@@ -301,12 +303,14 @@ export function createDictPage(cfg) {
 
     /* cancel edit */
     document.querySelectorAll('[data-edit-cancel]').forEach(btn =>
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async e => {
+        if (!await guardDiscard(document.querySelector(`[data-edit-form="${btn.dataset.editCancel}"]`), e)) return;
         const idx      = parseInt(btn.dataset.editCancel);
         const wrapper  = document.querySelector(`[data-entry-idx="${idx}"]`);
         const editForm = document.querySelector(`[data-edit-form="${idx}"]`);
         wrapper?.classList.remove('editing');
         editForm?.classList.remove('open');
+        discardEditDraft(editForm);
       })
     );
 
@@ -413,7 +417,8 @@ export function createDictPage(cfg) {
     });
 
     const addCancel = document.getElementById('add-cancel-btn');
-    if (addCancel) addCancel.addEventListener('click', () => {
+    if (addCancel) addCancel.addEventListener('click', async e => {
+      if (!await guardDiscard(document.getElementById('add-form-collapse'), e)) return;
       document.getElementById('add-form-collapse')?.classList.remove('open');
       if (addBtn) addBtn.style.display = '';
     });

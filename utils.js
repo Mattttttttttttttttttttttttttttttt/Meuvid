@@ -149,6 +149,149 @@ export function showConfirm(message, confirmLabel = 'confirm', event = null) {
   });
 }
 
+/* ── Expand / collapse animation helpers ── */
+
+/** Expand an element from zero height (used for freshly rendered adders). */
+export function animateIn(el, ms = 200) {
+  if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const h = el.getBoundingClientRect().height;
+  const prev = el.style.overflow;
+  el.style.overflow = 'hidden';
+  const a = el.animate([
+    { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px' },
+    { height: h + 'px', opacity: 1 }, // padding/margin end at their computed values
+  ], { duration: ms, easing: 'ease' });
+  a.onfinish = a.oncancel = () => { el.style.overflow = prev; };
+}
+
+/** Collapse an element to zero height, then remove it (used for dismissed adders). */
+export function animateOut(el, ms = 200) {
+  if (!el) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.remove(); return; }
+  const h = el.getBoundingClientRect().height;
+  el.style.overflow = 'hidden';
+  el.style.pointerEvents = 'none';
+  el.animate([
+    { height: h + 'px', opacity: 1 },
+    { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px' },
+  ], { duration: ms, easing: 'ease', fill: 'forwards' }).onfinish = () => el.remove();
+}
+
+/** Record open edit forms inside root, so their collapse can be replayed after a DOM rebuild. */
+export function captureOpenForms(root) {
+  if (!root) return [];
+  return [...root.querySelectorAll('.edit-collapse.open')].map(f => {
+    const attr = [...f.attributes].find(a => /^data-.*form$/.test(a.name));
+    const sel = f.id ? `#${f.id}` : attr ? `[${attr.name}="${attr.value}"]` : null;
+    return { sel, dim: !!f.parentElement?.classList.contains('editing') };
+  }).filter(x => x.sel);
+}
+
+/** After a rebuild, animate the (now closed) forms from captureOpenForms collapsing. */
+export function replayCollapse(root, saved, ms = 200) {
+  if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  saved.forEach(({ sel, dim }) => {
+    const f = root.querySelector(sel);
+    if (!f || f.classList.contains('open')) return;
+    const opts = { duration: ms, easing: 'ease' };
+    f.animate([{ gridTemplateRows: '1fr', opacity: 1 }, { gridTemplateRows: '0fr', opacity: 0 }], opts);
+    f.firstElementChild?.animate([{ visibility: 'visible' }, { visibility: 'visible' }], opts);
+    if (dim) f.previousElementSibling?.animate([{ opacity: 0.28 }, { opacity: 1 }], opts);
+  });
+}
+
+/* ── Discard-changes modal ── */
+
+/** True if any input/textarea in the form differs from its rendered value. */
+export function formDirty(form) {
+  /* the adder's assign-search box is a query, not work worth guarding */
+  return [...form.querySelectorAll('input:not(#adder-assign-search), textarea')]
+    .some(el => el.value !== el.defaultValue);
+}
+
+/** True if any open edit/add form holds unsaved input (raw edit is populated in JS, so excluded). */
+export function hasDirtyDraft() {
+  return [...document.querySelectorAll('.edit-collapse.open:not(#raw-form-collapse)')].some(formDirty);
+}
+
+/**
+ * Resolves true when it's fine to discard: Shift held, nothing unsaved, or user confirms.
+ * @param {Element|null} form  form being cancelled
+ * @param {Event} [event]      originating click; Shift bypasses the prompt
+ * @param {boolean} [extraDirty] additional unsaved state (e.g. drag moves)
+ */
+export function guardDiscard(form, event = null, extraDirty = false) {
+  if ((event && event.shiftKey) || _shiftHeld) return Promise.resolve(true);
+  if (!extraDirty && !(form && formDirty(form))) return Promise.resolve(true);
+  return showDiscardModal();
+}
+
+/**
+ * "Discard changes?" dialog. Resolves true on discard; false on cancel, X, Esc
+ * or outside click. The background is inert and Tab is trapped while open.
+ */
+export function showDiscardModal() {
+  return new Promise(resolve => {
+    window.getSelection()?.removeAllRanges();
+    const container = document.getElementById('modal-container');
+    const prevFocus = document.activeElement;
+    container.innerHTML = `
+      <div class="overlay" id="confirm-overlay">
+        <div class="modal modal-sm discard-modal" role="alertdialog" aria-modal="true" aria-labelledby="discard-msg">
+          <button class="btn btn-sm btn-ghost discard-x" id="discard-x" aria-label="Close">✕</button>
+          <p class="discard-msg" id="discard-msg">Discard changes?</p>
+          <div class="confirm-actions">
+            <button class="btn btn-sm" id="discard-cancel">cancel</button>
+            <button class="btn btn-sm btn-danger" id="discard-ok">discard</button>
+          </div>
+        </div>
+      </div>`;
+
+    const overlay = document.getElementById('confirm-overlay');
+    const modal = overlay.querySelector('.modal');
+    const inerted = [...document.body.children]
+      .filter(el => el !== container && el.tagName !== 'SCRIPT' && !el.inert);
+    inerted.forEach(el => { el.inert = true; }); // blocks Tab, clicks and screen readers
+
+    function close(result) {
+      document.removeEventListener('keydown', onKey, true);
+      inerted.forEach(el => { el.inert = false; });
+      container.innerHTML = '';
+      if (!result) prevFocus?.focus?.();
+      resolve(result);
+    }
+
+    /* capture phase: handle Esc before the global shortcut handler sees it */
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (!e.repeat) close(false);
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const btns = [...modal.querySelectorAll('button')];
+      const first = btns[0], last = btns[btns.length - 1];
+      const a = document.activeElement;
+      if (!modal.contains(a)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+      else if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
+    }
+    document.addEventListener('keydown', onKey, true);
+
+    document.getElementById('discard-ok').addEventListener('click', () => close(true));
+    document.getElementById('discard-cancel').addEventListener('click', () => close(false));
+    document.getElementById('discard-x').addEventListener('click', () => close(false));
+
+    /* outside click: require mousedown to start on the overlay too (avoids drag-select closes) */
+    let downOnOverlay = false;
+    overlay.addEventListener('mousedown', e => { downOnOverlay = e.target === overlay; });
+    overlay.addEventListener('click', e => { if (e.target === overlay && downOnOverlay) close(false); });
+
+    prevFocus?.blur?.();
+  });
+}
+
 /* ── Hiding (spoiler) mode ── */
 
 let _hideWords = false;
@@ -455,8 +598,9 @@ function _dragCleanup() {
  * revert in-memory moves and restore data, not just toggle CSS classes.
  */
 let _escCleanup = null;
-export function setEscCleanup(fn) { _escCleanup = fn; }
-export function clearEscCleanup() { _escCleanup = null; }
+let _escDirty = null; // optional: reports unsaved state beyond form inputs (e.g. moves)
+export function setEscCleanup(fn, isDirty = null) { _escCleanup = fn; _escDirty = isDirty; }
+export function clearEscCleanup() { _escCleanup = null; _escDirty = null; }
 
 /*
  * _escHandler: registered by a page (e.g. the section view) to close its own
@@ -464,6 +608,15 @@ export function clearEscCleanup() { _escCleanup = null; }
  */
 let _escHandler = null;
 export function registerEscHandler(fn) { _escHandler = fn; }
+
+/** After the collapse transition, discard unsaved input and restore the rendered values. */
+export function discardEditDraft(form) {
+  if (!form) return;
+  setTimeout(() => {
+    if (form.classList.contains('open')) return; // reopened meanwhile
+    form.querySelectorAll('input, textarea').forEach(el => { el.value = el.defaultValue; });
+  }, 200);
+}
 
 /**
  * Register site-wide keyboard shortcuts once per page load.
@@ -509,6 +662,19 @@ export function initGlobalShortcuts() {
     if (e.key === 'Escape') {
       // Let the confirm dialog handle its own Escape via its own listener
       if (document.getElementById('confirm-overlay')) return;
+      // Unsaved input in an open form → confirm first (Shift+Esc skips)
+      if (!e.shiftKey && (hasDirtyDraft() || _escDirty?.())) {
+        e.preventDefault();
+        if (!e.repeat) showDiscardModal().then(ok => { if (ok) _runEscape(); });
+        return;
+      }
+      _runEscape();
+    }
+  });
+}
+
+/** Escape-key close logic; runs directly or after the discard prompt is confirmed. */
+function _runEscape() {
       // If a textpage edit session is active, revert moves and close
       if (_escCleanup) { _escCleanup(); _escCleanup = null; return; }
       // Let a page-registered handler (section view) close its own UI first
@@ -516,7 +682,9 @@ export function initGlobalShortcuts() {
       // Otherwise do the normal CSS-only close for dict and textpage forms
       document.querySelectorAll('.dict-entry-wrapper.editing').forEach(w => {
         w.classList.remove('editing');
-        w.querySelector('.edit-collapse')?.classList.remove('open');
+        const f = w.querySelector('.edit-collapse');
+        f?.classList.remove('open');
+        discardEditDraft(f);
       });
       document.querySelectorAll('.para-block.editing').forEach(b => {
         b.classList.remove('editing');
@@ -534,8 +702,6 @@ export function initGlobalShortcuts() {
         const btn = document.getElementById('text-raw-btn');
         if (btn) btn.textContent = 'raw edit';
       }
-    }
-  });
 }
 
 /**
