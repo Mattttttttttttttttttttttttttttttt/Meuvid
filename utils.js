@@ -4,6 +4,7 @@
 
 import { DICT, GRAMMAR, PHONETICS, WRITING, PHILOSOPHY, SECTIONS } from './lang-data.js';
 import { AUTH } from './auth.js';
+import { load, save, clearExcept } from './store.js';
 
 /** Escape a string for safe HTML attribute / text insertion. */
 export function esc(s) {
@@ -19,27 +20,12 @@ export function withSnippets(s) {
   return String(s).replace(/`([^`\n]+)`/g, '<span class="lang-snippet">$1</span>');
 }
 
-/** Load a value from localStorage, falling back to defaultValue. */
-export function load(key, defaultValue) {
-  try {
-    const v = localStorage.getItem(key);
-    return v ? JSON.parse(v) : defaultValue;
-  } catch {
-    return defaultValue;
-  }
-}
-
-/** Save a value to localStorage as JSON. */
-export function save(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* quota exceeded etc. */ }
-}
-
 /* ── Undo / Redo ── */
 
 const _MAX_HISTORY = 50;
 
-function _loadStack(k)    { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } }
-function _saveStack(k, a) { try { localStorage.setItem(k, JSON.stringify(a)); } catch {} }
+const _loadStack = k => load(k, []);
+const _saveStack = save;
 
 let _undoRestoreCallback = null;
 /** Register the current page's restore handler; replaces the previous one on navigation. */
@@ -52,27 +38,27 @@ export function registerUndoCallback(cb) { _undoRestoreCallback = cb; }
  * @param {*} after   deep-cloned snapshot AFTER the change
  */
 export function pushUndo(dataKey, before, after) {
-  const stack = _loadStack('mv_undo');
+  const stack = _loadStack('undo');
   stack.push({ dataKey, before, after });
   if (stack.length > _MAX_HISTORY) stack.shift();
-  _saveStack('mv_undo', stack);
-  _saveStack('mv_redo', []); // new action always clears the redo branch
+  _saveStack('undo', stack);
+  _saveStack('redo', []); // new action always clears the redo branch
 }
 
 function undoAction() {
-  const stack = _loadStack('mv_undo');
+  const stack = _loadStack('undo');
   if (!stack.length) return;
-  const entry = stack.pop(); _saveStack('mv_undo', stack);
-  const redo = _loadStack('mv_redo'); redo.push(entry); _saveStack('mv_redo', redo);
+  const entry = stack.pop(); _saveStack('undo', stack);
+  const redo = _loadStack('redo'); redo.push(entry); _saveStack('redo', redo);
   save(entry.dataKey, entry.before);
   _undoRestoreCallback?.(entry.dataKey, entry.before);
 }
 
 function redoAction() {
-  const redo = _loadStack('mv_redo');
+  const redo = _loadStack('redo');
   if (!redo.length) return;
-  const entry = redo.pop(); _saveStack('mv_redo', redo);
-  const stack = _loadStack('mv_undo'); stack.push(entry); _saveStack('mv_undo', stack);
+  const entry = redo.pop(); _saveStack('redo', redo);
+  const stack = _loadStack('undo'); stack.push(entry); _saveStack('undo', stack);
   save(entry.dataKey, entry.after);
   _undoRestoreCallback?.(entry.dataKey, entry.after);
 }
@@ -805,19 +791,9 @@ function _serSections(arr) {
   return arr.length ? `[\n${secs},\n]` : '[]';
 }
 
-const MV_DATA_KEYS = [
-  'mv_dict', 'mv_dict_view',
-  'mv_grammar',
-  'mv_phonetics',
-  'mv_writing',
-  'mv_philosophy',
-  'mv_sections',
-  'mv_undo', 'mv_redo',
-];
-
-/** Wipe all locally-saved meuvid data so every page falls back to the shipped lang-data.js. */
+/** Wipe all local meuvid data except the login (fall back to the shipped lang-data.js) */
 export function resetMeuvidData() {
-  MV_DATA_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+  clearExcept(['auth']);
   location.reload();
 }
 
@@ -825,12 +801,12 @@ export function resetMeuvidData() {
  * Build a fresh lang-data.js from current localStorage state and trigger a download.
  */
 export function exportDataJS() {
-  const dict = load('mv_dict', DICT);
-  const grammar = load('mv_grammar', GRAMMAR);
-  const phonetics = load('mv_phonetics', PHONETICS);
-  const writing = load('mv_writing', WRITING);
-  const philosophy = load('mv_philosophy', PHILOSOPHY);
-  const sections = load('mv_sections', SECTIONS);
+  const dict = load('dict', DICT);
+  const grammar = load('grammar', GRAMMAR);
+  const phonetics = load('phonetics', PHONETICS);
+  const writing = load('writing', WRITING);
+  const philosophy = load('philosophy', PHILOSOPHY);
+  const sections = load('sections', SECTIONS);
 
   const ts = new Date().toISOString();
 

@@ -3,11 +3,12 @@
    ================================================================ */
 
 import {
-  esc, withSnippets, load, save, registerUndoCallback, pushUndo, showConfirm, hideKeyForEntry,
+  esc, withSnippets, registerUndoCallback, pushUndo, showConfirm, hideKeyForEntry,
   applyHiding, revealHidden, filterEntries, discardEditDraft, guardDiscard,
   SVG_QUESTION, SVG_LIST, SVG_SECTION,
 } from './utils.js';
 import { AUTH } from './auth.js';
+import { load, save } from './store.js';
 import { createTextPage } from './textpage.js';
 
 /**
@@ -15,7 +16,7 @@ import { createTextPage } from './textpage.js';
  *
  * @param {object} cfg
  * @param {boolean}  cfg.hasPos     - true for dictionary (has POS field), false for affixes
- * @param {string}   cfg.dataKey    - localStorage key, e.g. 'mv_dict'
+ * @param {string}   cfg.dataKey    - key in the "mv" store, e.g. 'dict'
  * @param {Array[]}  cfg.dataRaw    - fallback data array
  * @param {Array[]}  cfg.kwTable    - keywords table (DICT_KEYWORDS or AFFIXES_KEYWORDS)
  * @param {string}   cfg.label      - singular label, e.g. 'word' or 'affix'
@@ -26,7 +27,6 @@ import { createTextPage } from './textpage.js';
 export function createDictPage(cfg) {
   const { hasPos, dataKey, dataRaw, kwTable, label, noun } = cfg;
   const hasSections = !!cfg.hasSections;
-  const viewKey     = dataKey + '_view'; // 'list' | 'section'
 
   /* An entry is [word, pos, def] (+ optional numeric id) for the dictionary, or
      [word, def] (+ optional id) for affixes. The id is the trailing element and
@@ -43,7 +43,7 @@ export function createDictPage(cfg) {
   let data        = load(dataKey, dataRaw).sort(_cmpEntries);
   let query       = '';
   let showKwModal = false;
-  let viewMode    = hasSections ? load(viewKey, 'list') : 'list';
+  let viewMode    = hasSections ? load('dict-view', 'list') : 'list'; // 'list' | 'section'
 
    /* ── section view module (dictionary/affixes) ── */
   const sectionView = hasSections ? createTextPage({
@@ -358,7 +358,7 @@ export function createDictPage(cfg) {
         const mode = btn.dataset.view;
         if (mode === viewMode) return;
         viewMode = mode;
-        save(viewKey, viewMode);
+        save('dict-view', viewMode);
         document.querySelectorAll('.view-toggle-btn').forEach(b => {
           const on = b.dataset.view === viewMode;
           b.classList.toggle('active', on);

@@ -28,7 +28,7 @@
   <div id="app"></div>
 
   <script type="module">
-    import { load } from './utils.js';
+    import { load } from './store.js';
     import { AUTH } from './auth.js';
     import { initNav } from './nav.js';
     import { renderHome } from './home.js';
@@ -40,7 +40,7 @@
         () => AUTH.showLoginModal(render),
         () => { AUTH.logout(); render(); }
       );
-      renderHome(load('mv_dict', DICT));
+      renderHome(load('dict', DICT));
     }
 
     render();

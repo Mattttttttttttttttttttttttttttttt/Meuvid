@@ -15,11 +15,12 @@
    ================================================================ */
 
 import {
-  esc, withSnippets, load, save, registerUndoCallback, pushUndo, wrapSelectedText, showConfirm, hideKeyForEntry,
+  esc, withSnippets, registerUndoCallback, pushUndo, wrapSelectedText, showConfirm, hideKeyForEntry,
   randId, tagParaHideKeys, applyHiding, revealHidden, dragHandleHTML, initDragReorder,
   registerEscHandler, filterEntries, discardEditDraft, guardDiscard, formDirty,
   animateIn, animateOut, captureOpenForms, replayCollapse,
 } from './utils.js';
+import { load, save } from './store.js'
 import { AUTH } from './auth.js';
 
 /**

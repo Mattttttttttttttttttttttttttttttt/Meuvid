@@ -3,6 +3,7 @@
    ================================================================ */
 
 import { AUTH_HASH } from './data.js';
+import { load, save, remove } from './store.js';
 
 export const AUTH = (function () {
 
@@ -62,7 +63,7 @@ export const AUTH = (function () {
       const pw = document.getElementById('login-pw')?.value || '';
       const hash = await _hash(pw);
       if (hash === AUTH_HASH) {
-        localStorage.setItem('mv_auth', '1');
+        save('auth', true);
         _closeModal();
         _onSuccess && _onSuccess();
       } else {
@@ -85,12 +86,12 @@ export const AUTH = (function () {
   return {
     /** Returns true if the user is currently logged in. */
     isLoggedIn() {
-      return localStorage.getItem('mv_auth') === '1';
+      return load('auth', false) === true;
     },
 
     /** Clear the session. */
     logout() {
-      localStorage.removeItem('mv_auth');
+      remove('auth');
     },
 
     /**
