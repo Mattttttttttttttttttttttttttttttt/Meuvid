@@ -1,6 +1,5 @@
 /* ================================================================
-   textpage.js — sectioned text page (grammar, phonetics, …); also the section
-   view of a dictionary page
+   textpage.js — sectioned pages (grammar, phonetics, dict-section)
 
    Data model (localStorage key cfg.dataKey, fallback cfg.dataRaw):
      [ [headingText, items], ... ]
@@ -10,15 +9,13 @@
    require no writes here. A reference whose target was deleted renders as such.
 
    Reordering a heading moves its whole section past the adjacent section.
-   Reordering an item moves it one slot, crossing into the neighbouring
-   section at a section edge.
    ================================================================ */
 
 import {
   esc, withSnippets, registerUndoCallback, pushUndo, wrapSelectedText, showConfirm, hideKeyForEntry,
   randId, tagParaHideKeys, applyHiding, revealHidden, dragHandleHTML, initDragReorder,
   registerEscHandler, filterEntries, discardEditDraft, guardDiscard, formDirty,
-  animateIn, animateOut, captureOpenForms, replayCollapse,
+  animateIn, animateOut, captureOpenForms, replayCollapse, SVG_CHEVRON,
 } from './utils.js';
 import { load, save } from './store.js'
 import { AUTH } from './auth.js';
@@ -58,9 +55,26 @@ export function createTextPage(cfg) {
   const loggedIn = () => AUTH.isLoggedIn();
   const entryId = e => (e.length > baseLen ? e[idIdx] : null);
 
+  /* Collapsed sections: stored in `mv` under "collapsed"; not exported */
+  const collapsed = new Set(load('collapsed', {})[sectionsKey] || []);
+
+  function _saveCollapsed() {
+    save('collapsed', { ...load('collapsed', {}), [sectionsKey]: [...collapsed] });
+  }
+
+  /** Forget collapsed state for headings that no longer exist. */
+  function _pruneCollapsed() {
+    const live = new Set(sections.map(sec => sec[0]));
+    const stale = [...collapsed].filter(h => !live.has(h));
+    if (!stale.length) return;
+    stale.forEach(h => collapsed.delete(h));
+    _saveCollapsed();
+  }
+
   function commit(before) {
     save(sectionsKey, sections);
     pushUndo(sectionsKey, before, clone(sections));
+    _pruneCollapsed();
   }
 
   /* A reference is [word] for an unambiguous word, or [word, id] for a duplicate. */
@@ -290,10 +304,16 @@ export function createTextPage(cfg) {
         </div></div>
       </div>` : '';
     return `
-      <section class="sec-block" data-sec-block="${s}">
-        <div class="sec-head"><h1>${esc(heading)}</h1>${headActions}</div>
+      <section class="sec-block${collapsed.has(heading) ? ' collapsed' : ''}" data-sec-block="${s}">
+        <div class="sec-head">
+          <button class="sec-fold" data-sec-fold="${s}" aria-label="collapse or expand section"
+            aria-expanded="${!collapsed.has(heading)}">${SVG_CHEVRON}</button>
+          <h1>${esc(heading)}</h1>${headActions}
+        </div>
         ${headForm}
-        <div class="sec-items" data-sec-items="${s}">${_itemsHTML(items, s)}</div>
+        <div class="sec-fold-body"><div class="sec-fold-inner">
+          <div class="sec-items" data-sec-items="${s}">${_itemsHTML(items, s)}</div>
+        </div></div>
       </section>`;
   }
 
@@ -337,6 +357,7 @@ export function createTextPage(cfg) {
   /* ── mutations ── */
   /** Move the item at fromKey ("s.i") to just before toKey ("s.i") */
   function _dragMoveTo(fromKey, toKey) {
+    if (_editorOpen()) return;
     const [fs, fi] = _si(fromKey);
     let [ts, ti] = _si(toKey);
     if (fs === ts && (ti === fi || ti === fi + 1)) return; // dropped back where it started
@@ -380,6 +401,31 @@ export function createTextPage(cfg) {
     el?.classList.add('open');
     const f = focusSel ? el?.querySelector(focusSel) : null;
     if (f) setTimeout(() => f.focus(), 20);
+  }
+
+  /** True while an adder or any edit form is visible; reordering is locked then. */
+  function _editorOpen() {
+    return !!adder || !!container.querySelector(
+      '[data-item-form].open, [data-head-form].open, #sec-add-section-form.open, #raw-form-collapse.open');
+  }
+
+  /** Sections holding an open adder or edit form; these can't be collapsed. */
+  function _activeSections() {
+    const active = new Set();
+    if (adder) active.add(adder.sec);
+    container.querySelectorAll('.sec-item.editing').forEach(b => active.add(Number(b.dataset.sec)));
+    container.querySelectorAll('[data-head-form].open').forEach(f => active.add(Number(f.dataset.headForm)));
+    return active;
+  }
+
+  /* Reflect the locks visually: dimmed chevrons and drag handles. Re-run on any DOM class change. */
+  const _lockObserver = new MutationObserver(() => _syncLocks());
+  function _syncLocks() {
+    if (!container) return;
+    const active = _activeSections();
+    container.querySelectorAll('.sec-block').forEach(b =>
+      b.querySelector('.sec-fold')?.classList.toggle('locked', active.has(Number(b.dataset.secBlock))));
+    container.classList.toggle('drag-locked', _editorOpen());
   }
 
   /** Close the adder (confirming first if it has typed input). False if the user keeps it. */
@@ -498,7 +544,42 @@ export function createTextPage(cfg) {
     );
   }
 
+  /** Sync every section's collapsed class with the state. */
+  function _applyFold() {
+    container.querySelectorAll('.sec-block').forEach(b => {
+      const c = collapsed.has(sections[Number(b.dataset.secBlock)][0]);
+      if (b.classList.contains('collapsed') !== c) {
+        /* clip the content only while it animates: clipping at rest would cut off the gutter handles */
+        b.classList.add('folding');
+        clearTimeout(b._foldTimer);
+        const ms = parseFloat(getComputedStyle(b.querySelector('.sec-fold-body')).transitionDuration) * 1000 || 0;
+        b._foldTimer = setTimeout(() => b.classList.remove('folding'), ms + 30);
+      }
+      b.classList.toggle('collapsed', c);
+      b.querySelector('.sec-fold')?.setAttribute('aria-expanded', String(!c));
+    });
+  }
+
+  function _toggleFold(s) {
+    const heading = sections[s][0];
+    if (_activeSections().has(s)) return; // its editor/adder is open
+    if (collapsed.has(heading)) collapsed.delete(heading); else collapsed.add(heading);
+    _saveCollapsed();
+    _applyFold();
+  }
+
+  /* Same query as the chevron's CSS: hover devices get the chevron, the rest tap the heading. */
+  const _hoverDevice = () => window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
   function _bindHeadEvents() {
+    container.querySelectorAll('[data-sec-fold]').forEach(btn =>
+      btn.addEventListener('click', () => _toggleFold(Number(btn.dataset.secFold)))
+    );
+    container.querySelectorAll('.sec-head > h1').forEach(h =>
+      h.addEventListener('click', () => {
+        if (!_hoverDevice()) _toggleFold(Number(h.closest('.sec-block').dataset.secBlock));
+      })
+    );
     container.querySelectorAll('[data-head-edit]').forEach(btn =>
       btn.addEventListener('click', async e => {
         if (!await _dismissAdder(e)) return;
@@ -527,6 +608,7 @@ export function createTextPage(cfg) {
         const text = (container.querySelector(`[data-head-ta="${s}"]`)?.value || '').trim();
         if (!text) return;
         const before = clone(sections);
+        if (collapsed.delete(sections[s][0])) { collapsed.add(text); _saveCollapsed(); } // carry state over a rename
         sections[s][0] = text;
         commit(before);
         render(container);
@@ -570,6 +652,7 @@ export function createTextPage(cfg) {
     if (adder && adder.sec === s && adder.pos === pos) { adder = null; render(container); return; }
     const closing = captureOpenForms(container); // replayed after the rebuild
     if (!await _dismissEdits(ev)) return;
+    if (collapsed.delete(sections[s][0])) _saveCollapsed(); // a hidden adder is useless
     adder = { sec: s, pos, mode: mode || 'para', q: '', sel: 0 };
     _adderEnter = true;
     render(container);
@@ -793,7 +876,10 @@ export function createTextPage(cfg) {
     _bindItemEvents();
     _bindAdderEvents();
     _bindBottomEvents();
-    initDragReorder(container, _dragMoveTo, key => _openItemEdit(..._si(key)));
+    initDragReorder(container, _dragMoveTo, key => _openItemEdit(..._si(key)), () => !_editorOpen());
+    _lockObserver.disconnect();
+    _lockObserver.observe(container, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    _syncLocks();
     tagParaHideKeys(container);
     applyHiding(container);
   }

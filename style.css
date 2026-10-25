@@ -1297,6 +1297,7 @@ code {
    SECTION VIEW
    ================================================================ */
 .sec-head {
+  position: relative;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1313,6 +1314,67 @@ code {
 }
 
 .sec-items { display: flex; flex-direction: column; }
+
+/* collapse chevron: points down when open, right when collapsed */
+.sec-fold {
+  flex: none;
+  display: none; /* hover devices only */
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 41px; /* one heading line: 36px × 1.15 */
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--ease);
+}
+.sec-fold:hover, .sec-fold:focus-visible { opacity: 1; }
+.sec-fold svg { transform: rotate(90deg); transition: transform 0.15s; }
+.sec-block.collapsed .sec-fold svg { transform: none; }
+/* collapse animation: grid rows 1fr → 0fr. Content is clipped only while folding or collapsed
+   (clipping at rest would cut off the gutter handles). */
+.sec-fold-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.2s ease;
+}
+.sec-fold-inner { min-height: 0; }
+.sec-block.folding .sec-fold-inner,
+.sec-block.collapsed .sec-fold-inner { overflow: hidden; }
+.sec-block.collapsed .sec-fold-body {
+  grid-template-rows: 0fr;
+  visibility: hidden; /* flips after the animation: keeps hidden content out of the tab order */
+  transition: grid-template-rows 0.2s ease, visibility 0s 0.2s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sec-fold-body, .sec-block.collapsed .sec-fold-body { transition: none; }
+}
+
+/* hover devices: hang on the left like .para-gutter, shown on heading hover (always when collapsed) */
+@media (hover: hover) and (pointer: fine) {
+  .sec-fold {
+    display: inline-flex;
+    position: absolute;
+    right: 100%;
+    margin-right: 4px;
+    top: 0;
+    opacity: 0;
+  }
+  .sec-head:hover .sec-fold,
+  .sec-block.collapsed .sec-fold { opacity: 0.6; }
+  .sec-head .sec-fold:hover { opacity: 1; }
+}
+
+/* an open editor/adder pins its section open */
+.sec-head .sec-fold.locked,
+.sec-head:hover .sec-fold.locked,
+.sec-head .sec-fold.locked:hover { opacity: 0.15; cursor: not-allowed; }
+
+/* an editor or adder is open: reordering is disabled */
+.drag-locked .drag-handle { opacity: 0.25 !important; cursor: not-allowed; }
 
 /* entries carry no internal spacing or rules; the gaps below set the rhythm */
 .sec-item { margin: 0; position: relative; }
@@ -1488,6 +1550,8 @@ code {
 .assign-result.selected { background: var(--surface-3); }
 
 @media (max-width: 600px) {
-  .sec-head > h1 { font-size: 28px; margin-top: 32px; }
+  .sec-head { margin-top: 32px; }
+  .sec-head > h1 { font-size: 28px; }
+  .sec-fold { height: 32px; }
   .view-toggle-btn { padding: 8px 16px; font-size: 15px; }
 }

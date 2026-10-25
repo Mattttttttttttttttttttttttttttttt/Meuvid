@@ -409,7 +409,7 @@ const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_DIST = 30;
 const DRAG_MOVE_THRESHOLD = 10;
 
-export function initDragReorder(container, onDrop, onEdit) {
+export function initDragReorder(container, onDrop, onEdit, canDrag = () => true) {
   if (!container) return;
 
   container.querySelectorAll('.drag-handle').forEach(handle => {
@@ -417,7 +417,7 @@ export function initDragReorder(container, onDrop, onEdit) {
       if (e.button !== 0) return;
       e.preventDefault();
       const block = handle.closest('[data-drag-key]');
-      if (block) _dragBegin(block, e.clientY, container, onDrop);
+      if (block && canDrag()) _dragBegin(block, e.clientY, container, onDrop);
     });
   });
 
@@ -450,7 +450,8 @@ export function initDragReorder(container, onDrop, onEdit) {
       const t = e.touches[0];
       if (Math.hypot(t.clientX - sx, t.clientY - sy) > DRAG_MOVE_THRESHOLD) {
         tracking = false;
-        _dragBegin(block, t.clientY, container, onDrop);
+        if (canDrag()) _dragBegin(block, t.clientY, container, onDrop);
+        else block.style.touchAction = '';
       }
     }, { passive: false });
 
@@ -495,7 +496,8 @@ function _dragBegin(block, y, container, onDrop) {
   _DRAG.preview = preview;
   _DRAG.grabDY = y - rect.top; // keeps the preview from jumping to re-center under the cursor
 
-  _DRAG.gaps = [...container.querySelectorAll('.sec-insert')];
+  /* skip gaps in collapsed sections: they stay laid out but invisible, overlapping the content below */
+  _DRAG.gaps = [...container.querySelectorAll('.sec-insert')].filter(g => !g.closest('.sec-block.collapsed'));
 
   document.body.style.userSelect = 'none';
   document.body.style.cursor = 'grabbing';
