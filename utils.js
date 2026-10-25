@@ -22,24 +22,20 @@ export function withSnippets(s) {
 
 /**
  * Title + word / pos / definition row, shared by every "new word" form.
- * @param {string}  label  'word' or 'affix'
- * @param {boolean} hasPos include the pos field
  * @param {{word:string,pos:string,def:string}} ids  input element ids
  */
-export function wordFieldsHTML(label, hasPos, ids) {
-  const posField = hasPos ? `
+export function wordFieldsHTML(ids) {
+  return `
+    <div class="add-form-title">New word</div>
+    <div class="form-row">
+      <div class="form-group" style="flex-grow:0;min-width:130px">
+        <label class="form-label">word</label>
+        <input class="form-input" id="${ids.word}" placeholder="vid" />
+      </div>
       <div class="form-group" style="flex-grow:0;min-width:85px">
         <label class="form-label">pos</label>
         <input class="form-input" id="${ids.pos}" placeholder="n." />
-      </div>` : '';
-  return `
-    <div class="add-form-title">New ${label}</div>
-    <div class="form-row">
-      <div class="form-group" style="flex-grow:0;min-width:130px">
-        <label class="form-label">${label}</label>
-        <input class="form-input" id="${ids.word}" placeholder="vid" />
       </div>
-      ${posField}
       <div class="form-group" style="flex:1;min-width:120px">
         <label class="form-label">definition</label>
         <input class="form-input" id="${ids.def}" placeholder="meaning…" />
@@ -329,7 +325,7 @@ export function showQuickAdd() {
   const { modal, close } = _mountModal(`
     <div class="overlay" id="qa-overlay">
       <div class="modal qa-modal" role="dialog" aria-modal="true" aria-label="Coin a word">
-        ${wordFieldsHTML('word', true, { word: 'qa-word', pos: 'qa-pos', def: 'qa-def' })}
+        ${wordFieldsHTML({ word: 'qa-word', pos: 'qa-pos', def: 'qa-def' })}
         <div class="form-actions">
           <button class="btn btn-primary btn-sm" id="qa-add">add</button>
           <button class="btn btn-sm" id="qa-cancel">cancel</button>
@@ -838,9 +834,8 @@ function _stripApos(s) { return String(s).replace(/'/g, ''); }
  *
  * @param {Array[]} data    - 2D array of entries
  * @param {string}  query   - raw search string
- * @param {boolean} hasPos  - whether the data has a POS field (index 1)
  */
-export function filterEntries(data, query, hasPos) {
+export function filterEntries(data, query) {
   if (!query.trim()) return data;
   const q = query.trim();
 
@@ -849,12 +844,9 @@ export function filterEntries(data, query, hasPos) {
   if (fnM) {
     const fn = fnM[1].toLowerCase();
     const re = _buildRegex(fnM[2]);
-    if (fn === 'pos' && hasPos) return data.filter(e => re.test(_stripApos(e[1])));
-    if (fn === 'all')          return data.filter(e => e.some(f => re.test(_stripApos(String(f)))));
-    if (fn === 'def') {
-      const idx = hasPos ? 2 : 1;
-      return data.filter(e => re.test(_stripApos(e[idx])));
-    }
+    if (fn === 'pos') return data.filter(e => re.test(_stripApos(e[1])));
+    if (fn === 'all') return data.filter(e => e.some(f => re.test(_stripApos(String(f)))));
+    if (fn === 'def') return data.filter(e => re.test(_stripApos(e[2])));
     // unrecognized function name → fall through to literal search
   }
 
@@ -879,7 +871,7 @@ function _serObj(obj) {
 }
 
 /**
- * Serialize a 2D array (e.g. dict, affixes) into a JS array literal.
+ * Serialize a 2D array (e.g. the dictionary) into a JS array literal.
  * Supports rows containing either strings or objects.
  */
 function _ser2D(arr) {

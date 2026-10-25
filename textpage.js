@@ -27,7 +27,6 @@ import { AUTH } from './auth.js';
  * @param {object}   cfg
  * @param {string}   cfg.dataKey       localStorage key
  * @param {Array}    cfg.dataRaw       fallback array
- * @param {boolean}  cfg.hasPos        whether source entries carry a POS field
  * @param {Function} cfg.getDict       () => live source array
  * @param {Function} cfg.addDictEntry  (tuple) => reference; adds to the source
  *                                      (persist + undo) and returns the reference
@@ -37,12 +36,11 @@ import { AUTH } from './auth.js';
  * @returns {{ render, handleUndo, collectRefIds }}
  */
 export function createTextPage(cfg) {
-  const { hasPos, getDict, addDictEntry, updateDictEntry } = cfg;
+  const { getDict, addDictEntry, updateDictEntry } = cfg;
   const sectionsKey = cfg.dataKey;
   const embedded = !!getDict;
-  const baseLen = hasPos ? 3 : 2;       // source entry length without an id
-  const idIdx   = baseLen;              // index the id occupies when present
-  const defIdx  = hasPos ? 2 : 1;
+  const idIdx   = 3;                    // source entry [word, pos, def, id?]: id slot, if present
+  const defIdx  = 2;
 
   let sections = load(sectionsKey, cfg.dataRaw);
   let container = null;
@@ -53,7 +51,7 @@ export function createTextPage(cfg) {
   /* ── helpers ── */
   const clone = x => JSON.parse(JSON.stringify(x));
   const loggedIn = () => AUTH.isLoggedIn();
-  const entryId = e => (e.length > baseLen ? e[idIdx] : null);
+  const entryId = e => (e.length > idIdx ? e[idIdx] : null);
 
   /* Collapsed sections: stored in `mv` under "collapsed"; not exported */
   const collapsed = new Set(load('collapsed', {})[sectionsKey] || []);
@@ -143,11 +141,11 @@ export function createTextPage(cfg) {
     const dKey = esc(hideKeyForEntry(word, refId, 'def'));
     const body = deleted
       ? `<span class="dict-word" data-hide-key="${wKey}">${esc(word)}</span>
-         <span class="dict-body sec-deleted" data-hide-key="${dKey}">deleted from ${hasPos ? 'dictionary' : 'affixes'}</span>`
+         <span class="dict-body sec-deleted" data-hide-key="${dKey}">deleted from dictionary</span>`
       : `<span class="dict-word" data-hide-key="${wKey}">${esc(entry[0])}</span>
-         <span class="dict-body" data-hide-key="${dKey}">${(hasPos && entry[1]) ? `<span class="dict-pos">${esc(entry[1])} </span>` : ''}${withSnippets(esc(entry[defIdx] ?? ''))}</span>`;
+         <span class="dict-body" data-hide-key="${dKey}">${entry[1] ? `<span class="dict-pos">${esc(entry[1])} </span>` : ''}${withSnippets(esc(entry[defIdx] ?? ''))}</span>`;
 
-    const posEditField = editable && hasPos ? `
+    const posEditField = editable ? `
       <input class="form-input" style="width:80px;flex-shrink:0"
         data-word-pos="${s}.${i}" value="${esc(entry[1])}" placeholder="pos." />` : '';
     const editForm = editable ? `
@@ -250,7 +248,7 @@ export function createTextPage(cfg) {
 
         ${embedded ? `
         <div class="adder-pane" data-adder-pane="word"${mode === 'word' ? '' : ' hidden'}>
-          ${wordFieldsHTML(hasPos ? 'word' : 'affix', hasPos, { word: 'adder-word-w', pos: 'adder-word-p', def: 'adder-word-d' })}
+          ${wordFieldsHTML({ word: 'adder-word-w', pos: 'adder-word-p', def: 'adder-word-d' })}
         </div>
 
         <div class="adder-pane" data-adder-pane="assign"${mode === 'assign' ? '' : ' hidden'}>
@@ -730,7 +728,7 @@ export function createTextPage(cfg) {
       const p = (container.querySelector('#adder-word-p')?.value || '').trim();
       const d = (container.querySelector('#adder-word-d')?.value || '').trim();
       if (!w || !d) return;
-      const ref = addDictEntry(hasPos ? [w, p, d] : [w, d]);
+      const ref = addDictEntry([w, p, d]);
       _insertAtAdder(clone(ref));
     }
   }
@@ -738,10 +736,10 @@ export function createTextPage(cfg) {
   function _refreshAssign() {
     const box = container.querySelector('#adder-assign-results');
     if (!box) return;
-    const results = filterEntries(getDict(), adder.q || '', hasPos);
+    const results = filterEntries(getDict(), adder.q || '');
     if (!results.length) { box.innerHTML = `<div class="sec-empty">No matches.</div>`; return; }
     box.innerHTML = results.map(e => {
-      const pos = (hasPos && e[1]) ? `<span class="dict-pos">${esc(e[1])} </span>` : '';
+      const pos = e[1] ? `<span class="dict-pos">${esc(e[1])} </span>` : '';
       const wKey = esc(hideKeyForEntry(e[0], entryId(e), 'word'));
       const dKey = esc(hideKeyForEntry(e[0], entryId(e), 'def'));
       return `

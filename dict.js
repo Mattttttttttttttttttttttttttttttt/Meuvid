@@ -12,29 +12,23 @@ import { load, save } from './store.js';
 import { createTextPage } from './textpage.js';
 
 /**
- * Create a dictionary/affixes page.
+ * Create the dictionary page.
  *
  * @param {object} cfg
- * @param {boolean}  cfg.hasPos     - true for dictionary (has POS field), false for affixes
- * @param {string}   cfg.dataKey    - key in the "mv" store, e.g. 'dict'
- * @param {Array[]}  cfg.dataRaw    - fallback data array
- * @param {Array[]}  cfg.kwTable    - keywords table (DICT_KEYWORDS or AFFIXES_KEYWORDS)
- * @param {string}   cfg.label      - singular label, e.g. 'word' or 'affix'
- * @param {string}   cfg.noun       - plural label, e.g. 'words' or 'affixes'
+ * @param {string}   cfg.dataKey      - key in the "mv" store, e.g. 'dict'
+ * @param {Array[]}  cfg.dataRaw      - fallback data array
+ * @param {Array[]}  cfg.kwTable      - keywords table (DICT_KEYWORDS)
+ * @param {string}   cfg.sectionsKey  - store key of the section view's data
+ * @param {Array}    cfg.sectionsRaw  - fallback sections array
  *
  * @returns {{ render: Function }}
  */
 export function createDictPage(cfg) {
-  const { hasPos, dataKey, dataRaw, kwTable, label, noun } = cfg;
-  const hasSections = !!cfg.hasSections;
+  const { dataKey, dataRaw, kwTable } = cfg;
 
-  /* An entry is [word, pos, def] (+ optional numeric id) for the dictionary, or
-     [word, def] (+ optional id) for affixes. The id is the trailing element and
-     exists only to disambiguate a word that appears more than once; the first
-     occurrence of a duplicated word stays id-less. */
-  const baseLen = hasPos ? 3 : 2; // entry length without an id
-  const idIdx   = baseLen;        // index the id occupies when present
-  const entryId = e => (e.length > baseLen ? e[idIdx] : null);
+  /* An entry is [word, pos, def] (+ optional numeric id). The id is the trailing
+     element and exists only to disambiguate; the first occurrence stays id-less. */
+  const entryId = e => (e.length > 3 ? e[3] : null);
 
   /* ignore prefix hyphens */
   const _cmpEntries = (a, b) => a[0].replace(/^-/, '').localeCompare(b[0].replace(/^-/, ''));
@@ -43,17 +37,16 @@ export function createDictPage(cfg) {
   let data        = load(dataKey, dataRaw).sort(_cmpEntries);
   let query       = '';
   let showKwModal = false;
-  let viewMode    = hasSections ? load('dict-view', 'list') : 'list'; // 'list' | 'section'
+  let viewMode    = load('dict-view', 'list'); // 'list' | 'section'
 
-   /* ── section view module (dictionary/affixes) ── */
-  const sectionView = hasSections ? createTextPage({
+  /* ── section view module ── */
+  const sectionView = createTextPage({
     dataKey: cfg.sectionsKey,
     dataRaw: cfg.sectionsRaw,
-    hasPos,
     getDict: () => data,
     addDictEntry: _addDictEntry,
     updateDictEntry: _updateEntryByRef,
-  }) : null;
+  });
 
   _migrateDuplicateIds();
 
@@ -97,15 +90,14 @@ export function createDictPage(cfg) {
     return id != null ? [entry[0], id] : [entry[0]];
   }
 
-  /* Edit a word on behalf of the section view, identified by its current word/id
-     (not index, since the section view has no index into the dictionary array).
-     Ripples the rename to every section reference. Returns the new reference,
-     or null if no matching entry was found. */
+  /* Edit a word on behalf of the section view, identified by its current word/id.
+     Ripples the rename to every section reference.
+     Returns the new reference, or null if no matching entry was found. */
   function _updateEntryByRef(oldWord, oldId, word, pos, def) {
     const idx = data.findIndex(e => e[0] === oldWord && entryId(e) === oldId);
     if (idx === -1) return null;
     const before = JSON.parse(JSON.stringify(data));
-    const newEntry = hasPos ? [word, pos, def] : [word, def];
+    const newEntry = [word, pos, def];
     if (oldId != null) newEntry.push(oldId);
     else if (data.some((e, i) => i !== idx && e[0] === word && entryId(e) == null)) {
       newEntry.push(_nextId()); // a rename turned this into a duplicate
@@ -155,7 +147,7 @@ export function createDictPage(cfg) {
   }
 
   function _entryHTML(entry, realIdx) {
-    const posSpan = (hasPos && entry[1])
+    const posSpan = entry[1]
       ? `<span class="dict-pos">${esc(entry[1])} </span>` : '';
 
     const actions = AUTH.isLoggedIn() ? `
@@ -164,7 +156,7 @@ export function createDictPage(cfg) {
         <button class="btn btn-sm btn-danger" data-delete="${realIdx}">×</button>
       </div>` : '';
 
-    const posEditField = (AUTH.isLoggedIn() && hasPos)
+    const posEditField = AUTH.isLoggedIn()
       ? `<input class="form-input" style="width:80px;flex-shrink:0"
            data-edit-pos="${realIdx}" value="${esc(entry[1])}" placeholder="pos." />` : '';
 
@@ -176,7 +168,7 @@ export function createDictPage(cfg) {
               data-edit-word="${realIdx}" value="${esc(entry[0])}" />
             ${posEditField}
             <input class="form-input" style="flex:1;min-width:120px"
-              data-edit-def="${realIdx}" value="${esc(entry[hasPos ? 2 : 1])}" />
+              data-edit-def="${realIdx}" value="${esc(entry[2])}" />
             <button class="btn btn-primary btn-sm" data-edit-save="${realIdx}">save</button>
             <button class="btn btn-sm" data-edit-cancel="${realIdx}">cancel</button>
           </div>
@@ -189,7 +181,7 @@ export function createDictPage(cfg) {
       <div class="dict-entry-wrapper" data-entry-idx="${realIdx}">
         <div class="dict-entry">
           <span class="dict-word" data-hide-key="${wKey}">${esc(entry[0])}</span>
-          <span class="dict-body" data-hide-key="${dKey}">${posSpan}${withSnippets(esc(entry[hasPos ? 2 : 1]))}</span>
+          <span class="dict-body" data-hide-key="${dKey}">${posSpan}${withSnippets(esc(entry[2]))}</span>
           ${actions}
         </div>
         ${editForm}
@@ -201,7 +193,7 @@ export function createDictPage(cfg) {
       <div class="edit-collapse" id="add-form-collapse">
         <div class="edit-collapse-inner">
           <div class="add-form">
-            ${wordFieldsHTML(label, hasPos, { word: 'add-word', pos: 'add-pos', def: 'add-def' })}
+            ${wordFieldsHTML({ word: 'add-word', pos: 'add-pos', def: 'add-def' })}
             <div class="form-actions">
               <button class="btn btn-primary btn-sm" id="add-save-btn">add</button>
               <button class="btn btn-sm" id="add-cancel-btn">cancel</button>
@@ -212,14 +204,13 @@ export function createDictPage(cfg) {
   }
 
   function _listHTML() {
-    const filtered = filterEntries(data, query, hasPos);
-    if (filtered.length === 0) return `<div class="no-results">No ${noun} found.</div>`;
+    const filtered = filterEntries(data, query);
+    if (filtered.length === 0) return `<div class="no-results">No words found.</div>`;
     return filtered.map(e => _entryHTML(e, data.indexOf(e))).join('');
   }
 
-  /* segmented list/section toggle (dictionary only) */
+  /* segmented list/section toggle */
   function _toggleHTML() {
-    if (!hasSections) return '';
     const on = m => viewMode === m ? ' active' : '';
     return `
       <div class="view-toggle" role="tablist" aria-label="view mode">
@@ -233,7 +224,7 @@ export function createDictPage(cfg) {
   /* list-mode body: search bar, add controls, entry list */
   function _listModeHTML() {
     const addControls = AUTH.isLoggedIn() ? `
-      <button class="btn btn-sm" id="dict-add-btn"${hasPos ? ' data-tooltip="coin a word (Ctrl++)"' : ''}>+ add ${label}</button>
+      <button class="btn btn-sm" id="dict-add-btn" data-tooltip="coin a word (Ctrl++)">+ add word</button>
       ${_addFormHTML()}` : '';
     return `
       <div class="search-row">
@@ -414,7 +405,7 @@ export function createDictPage(cfg) {
       const def  = (document.getElementById('add-def')?.value  || '').trim();
       if (!word || !def) return;
       const before = JSON.parse(JSON.stringify(data));
-      data = [...data, _entryWithId(hasPos ? [word, pos, def] : [word, def])]
+      data = [...data, _entryWithId([word, pos, def])]
                .sort(_cmpEntries);
       save(dataKey, data);
       pushUndo(dataKey, before, JSON.parse(JSON.stringify(data)));
