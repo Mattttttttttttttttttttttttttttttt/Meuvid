@@ -103,36 +103,7 @@ window.addEventListener('blur', () => { _shiftHeld = false; });
  */
 export function showConfirm(message, confirmLabel = 'confirm', event = null) {
   if ((event && event.shiftKey) || _shiftHeld) return Promise.resolve(true);
-  return new Promise(resolve => {
-    // Clear any lingering text selection so the modal doesn't render highlighted.
-    window.getSelection()?.removeAllRanges();
-    const container = document.getElementById('modal-container');
-    container.innerHTML = `
-      <div class="overlay" id="confirm-overlay">
-        <div class="modal modal-sm" role="dialog" aria-modal="true">
-          <p class="confirm-msg">${esc(message)}</p>
-          <div class="confirm-actions">
-            <button class="btn btn-sm"          id="confirm-cancel">cancel</button>
-            <button class="btn btn-sm btn-danger" id="confirm-ok">${esc(confirmLabel)}</button>
-          </div>
-        </div>
-      </div>`;
-
-    function close(result) {
-      document.removeEventListener('keydown', onKey);
-      container.innerHTML = '';
-      resolve(result);
-    }
-    function onKey(e) { if (e.key === 'Escape') close(false); }
-
-    document.getElementById('confirm-ok').addEventListener('click',     () => close(true));
-    document.getElementById('confirm-cancel').addEventListener('click', () => close(false));
-    document.getElementById('confirm-overlay').addEventListener('click', e => {
-      if (e.target.id === 'confirm-overlay') close(false);
-    });
-    document.addEventListener('keydown', onKey);
-    setTimeout(() => document.getElementById('confirm-cancel')?.focus(), 20);
-  });
+  return _showDialog(message, confirmLabel);
 }
 
 /* ── Expand / collapse animation helpers ── */
@@ -217,18 +188,22 @@ export function guardDiscard(form, event = null, extraDirty = false) {
  * or outside click. The background is inert and Tab is trapped while open.
  */
 export function showDiscardModal() {
+  return _showDialog('Discard changes?', 'discard');
+}
+
+/** Shared modal behind showConfirm and showDiscardModal. Resolves true on confirm. */
+function _showDialog(message, confirmLabel) {
   return new Promise(resolve => {
     window.getSelection()?.removeAllRanges();
     const container = document.getElementById('modal-container');
     const prevFocus = document.activeElement;
     container.innerHTML = `
       <div class="overlay" id="confirm-overlay">
-        <div class="modal modal-sm discard-modal" role="alertdialog" aria-modal="true" aria-labelledby="discard-msg">
-          <button class="btn btn-sm btn-ghost discard-x" id="discard-x" aria-label="Close">✕</button>
-          <p class="discard-msg" id="discard-msg">Discard changes?</p>
+        <div class="modal modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-msg">
+          <p class="confirm-msg" id="confirm-msg">${esc(message)}</p>
           <div class="confirm-actions">
-            <button class="btn btn-sm" id="discard-cancel">cancel</button>
-            <button class="btn btn-sm btn-danger" id="discard-ok">discard</button>
+            <button class="btn btn-sm" id="confirm-cancel">cancel</button>
+            <button class="btn btn-sm btn-danger" id="confirm-ok">${esc(confirmLabel)}</button>
           </div>
         </div>
       </div>`;
@@ -265,9 +240,8 @@ export function showDiscardModal() {
     }
     document.addEventListener('keydown', onKey, true);
 
-    document.getElementById('discard-ok').addEventListener('click', () => close(true));
-    document.getElementById('discard-cancel').addEventListener('click', () => close(false));
-    document.getElementById('discard-x').addEventListener('click', () => close(false));
+    document.getElementById('confirm-ok').addEventListener('click', () => close(true));
+    document.getElementById('confirm-cancel').addEventListener('click', () => close(false));
 
     /* outside click: require mousedown to start on the overlay too (avoids drag-select closes) */
     let downOnOverlay = false;

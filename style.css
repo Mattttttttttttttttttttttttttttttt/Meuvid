@@ -910,41 +910,6 @@ body {
   justify-content: flex-end;
 }
 
-/* discard-changes modal */
-.discard-modal {
-  position: relative;
-  text-align: center;
-  max-width: 250px;
-  padding: 34px 22px 20px;
-  border-radius: var(--r-lg);
-}
-
-.discard-x {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  justify-content: center;
-  font-size: 13px;
-}
-
-.discard-msg {
-  font-size: 18px;
-  font-weight: 400;
-  color: var(--text);
-  margin: 0 0 20px;
-}
-
-.discard-modal .confirm-actions { justify-content: center; }
-
-/* soft, animated focus instead of the global hard outline */
-.discard-modal .btn {
-  transition: color var(--ease), border-color var(--ease), background var(--ease),
-              box-shadow 0.22s ease;
-}
-
 .raw-edit-area {
   font-family: 'Courier New', monospace;
   font-size: 14px;
