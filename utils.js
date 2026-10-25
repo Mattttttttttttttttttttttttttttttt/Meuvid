@@ -20,6 +20,33 @@ export function withSnippets(s) {
   return String(s).replace(/`([^`\n]+)`/g, '<span class="lang-snippet">$1</span>');
 }
 
+/**
+ * Title + word / pos / definition row, shared by every "new word" form.
+ * @param {string}  label  'word' or 'affix'
+ * @param {boolean} hasPos include the pos field
+ * @param {{word:string,pos:string,def:string}} ids  input element ids
+ */
+export function wordFieldsHTML(label, hasPos, ids) {
+  const posField = hasPos ? `
+      <div class="form-group" style="flex-grow:0;min-width:85px">
+        <label class="form-label">pos</label>
+        <input class="form-input" id="${ids.pos}" placeholder="n." />
+      </div>` : '';
+  return `
+    <div class="add-form-title">New ${label}</div>
+    <div class="form-row">
+      <div class="form-group" style="flex-grow:0;min-width:130px">
+        <label class="form-label">${label}</label>
+        <input class="form-input" id="${ids.word}" placeholder="vid" />
+      </div>
+      ${posField}
+      <div class="form-group" style="flex:1;min-width:120px">
+        <label class="form-label">definition</label>
+        <input class="form-input" id="${ids.def}" placeholder="meaning…" />
+      </div>
+    </div>`;
+}
+
 /* ── Undo / Redo ── */
 
 const _MAX_HISTORY = 50;
@@ -191,13 +218,65 @@ export function showDiscardModal() {
   return _showDialog('Discard changes?', 'discard');
 }
 
+/**
+ * Mount a modal in #modal-container: background inert, Tab trapped inside,
+ * Esc and outside click close it. Focus returns to the opener unless the
+ * close result is truthy.
+ * @param {string} html       markup containing <div class="overlay" id=overlayId>
+ * @param {string} overlayId
+ * @param {(result:*) => void} [onClose]
+ * @returns {{ modal: Element, close: (result?: *) => void }}
+ */
+function _mountModal(html, overlayId, onClose) {
+  window.getSelection()?.removeAllRanges();
+  const container = document.getElementById('modal-container');
+  const prevFocus = document.activeElement;
+  container.innerHTML = html;
+
+  const overlay = document.getElementById(overlayId);
+  const modal = overlay.querySelector('.modal');
+  const inerted = [...document.body.children]
+    .filter(el => el !== container && el.tagName !== 'SCRIPT' && !el.inert);
+  inerted.forEach(el => { el.inert = true; }); // blocks Tab, clicks and screen readers
+
+  function close(result) {
+    document.removeEventListener('keydown', onKey, true);
+    inerted.forEach(el => { el.inert = false; });
+    container.innerHTML = '';
+    if (!result) prevFocus?.focus?.();
+    onClose?.(result);
+  }
+
+  /* capture phase: handle Esc before the global shortcut handler sees it */
+  function onKey(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (!e.repeat) close(false);
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const items = [...modal.querySelectorAll('input, button')];
+    const first = items[0], last = items[items.length - 1];
+    const a = document.activeElement;
+    if (!modal.contains(a)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+    else if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
+  }
+  document.addEventListener('keydown', onKey, true);
+
+  /* outside click: require mousedown to start on the overlay too (avoids drag-select closes) */
+  let downOnOverlay = false;
+  overlay.addEventListener('mousedown', e => { downOnOverlay = e.target === overlay; });
+  overlay.addEventListener('click', e => { if (e.target === overlay && downOnOverlay) close(false); });
+
+  return { modal, close };
+}
+
 /** Shared modal behind showConfirm and showDiscardModal. Resolves true on confirm. */
 function _showDialog(message, confirmLabel) {
   return new Promise(resolve => {
-    window.getSelection()?.removeAllRanges();
-    const container = document.getElementById('modal-container');
-    const prevFocus = document.activeElement;
-    container.innerHTML = `
+    const { modal, close } = _mountModal(`
       <div class="overlay" id="confirm-overlay">
         <div class="modal modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-msg">
           <p class="confirm-msg" id="confirm-msg">${esc(message)}</p>
@@ -206,50 +285,81 @@ function _showDialog(message, confirmLabel) {
             <button class="btn btn-sm btn-danger" id="confirm-ok">${esc(confirmLabel)}</button>
           </div>
         </div>
-      </div>`;
+      </div>`, 'confirm-overlay', resolve);
 
-    const overlay = document.getElementById('confirm-overlay');
-    const modal = overlay.querySelector('.modal');
-    const inerted = [...document.body.children]
-      .filter(el => el !== container && el.tagName !== 'SCRIPT' && !el.inert);
-    inerted.forEach(el => { el.inert = true; }); // blocks Tab, clicks and screen readers
-
-    function close(result) {
-      document.removeEventListener('keydown', onKey, true);
-      inerted.forEach(el => { el.inert = false; });
-      container.innerHTML = '';
-      if (!result) prevFocus?.focus?.();
-      resolve(result);
-    }
-
-    /* capture phase: handle Esc before the global shortcut handler sees it */
-    function onKey(e) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        if (!e.repeat) close(false);
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const btns = [...modal.querySelectorAll('button')];
-      const first = btns[0], last = btns[btns.length - 1];
-      const a = document.activeElement;
-      if (!modal.contains(a)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
-      else if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
-    }
-    document.addEventListener('keydown', onKey, true);
-
-    document.getElementById('confirm-ok').addEventListener('click', () => close(true));
-    document.getElementById('confirm-cancel').addEventListener('click', () => close(false));
-
-    /* outside click: require mousedown to start on the overlay too (avoids drag-select closes) */
-    let downOnOverlay = false;
-    overlay.addEventListener('mousedown', e => { downOnOverlay = e.target === overlay; });
-    overlay.addEventListener('click', e => { if (e.target === overlay && downOnOverlay) close(false); });
-
-    prevFocus?.blur?.();
+    modal.querySelector('#confirm-ok').addEventListener('click', () => close(true));
+    modal.querySelector('#confirm-cancel').addEventListener('click', () => close(false));
+    document.activeElement?.blur?.();
   });
+}
+
+/* ── Quick add (Ctrl++) ── */
+
+/**
+ * Add a dictionary entry straight to the store, from any page. Mirrors the
+ * dictionary page's add: sorted, duplicates get an id, undoable. The active
+ * page is then refreshed through its undo-restore callback.
+ */
+function _quickAddWord(word, pos, def) {
+  const clone = x => JSON.parse(JSON.stringify(x));
+  const dict = clone(load('dict', DICT));
+  const before = clone(dict);
+  const entry = [word, pos, def];
+  if (dict.some(e => e[0] === word)) {
+    let mx = 0; // largest id in use, incl. ids held by section references
+    dict.forEach(e => { if (e.length > 3 && e[3] > mx) mx = e[3]; });
+    load('sections', SECTIONS).forEach(sec => sec[1].forEach(it => {
+      if (Array.isArray(it) && it.length > 1 && it[1] > mx) mx = it[1];
+    }));
+    entry.push(mx + 1);
+  }
+  const next = [...dict, entry]
+    .sort((a, b) => a[0].replace(/^-/, '').localeCompare(b[0].replace(/^-/, '')));
+  save('dict', next);
+  pushUndo('dict', before, clone(next));
+  _undoRestoreCallback?.('dict', next);
+}
+
+/** "Coin a word" modal. Stays open after each add so several words can be entered. */
+export function showQuickAdd() {
+  if (!AUTH.isLoggedIn()) return;
+  const container = document.getElementById('modal-container');
+  if (!container || container.firstElementChild) return; // another modal is open
+
+  const { modal, close } = _mountModal(`
+    <div class="overlay" id="qa-overlay">
+      <div class="modal qa-modal" role="dialog" aria-modal="true" aria-label="Coin a word">
+        ${wordFieldsHTML('word', true, { word: 'qa-word', pos: 'qa-pos', def: 'qa-def' })}
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" id="qa-add">add</button>
+          <button class="btn btn-sm" id="qa-cancel">cancel</button>
+          <span class="qa-status" id="qa-status" role="status"></span>
+        </div>
+      </div>
+    </div>`, 'qa-overlay');
+
+  const $ = id => modal.querySelector('#' + id);
+  let statusTimer;
+
+  function add() {
+    const word = $('qa-word').value.trim();
+    const pos  = $('qa-pos').value.trim();
+    const def  = $('qa-def').value.trim();
+    if (!word || !def) { (word ? $('qa-def') : $('qa-word')).focus(); return; }
+    _quickAddWord(word, pos, def);
+    ['qa-word', 'qa-pos', 'qa-def'].forEach(id => { $(id).value = ''; });
+    $('qa-word').focus();
+    $('qa-status').textContent = `added \u201c${word}\u201d`;
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => { $('qa-status').textContent = ''; }, 2500);
+  }
+
+  $('qa-add').addEventListener('click', add);
+  $('qa-cancel').addEventListener('click', () => close(false));
+  modal.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.matches('input')) add();
+  });
+  $('qa-word').focus();
 }
 
 /* ── Hiding (spoiler) mode ── */
@@ -618,6 +728,12 @@ export function initGlobalShortcuts() {
       return;
     }
 
+    // Ctrl++ → quick-add a word (logged-in only)
+    if (ctrl && e.key === '+') {
+      if (AUTH.isLoggedIn()) { e.preventDefault(); showQuickAdd(); }
+      return;
+    }
+
     // Ctrl+Shift+G / Ctrl+Shift+H → toggle hiding
     if (ctrl && e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); toggleHideWords(); return; }
     if (ctrl && e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); toggleHideDefs();  return; }
@@ -678,6 +794,8 @@ function _runEscape() {
         addC.classList.remove('open');
         const btn = document.getElementById('text-add-btn');
         if (btn) btn.textContent = '+ add paragraph';
+        const dictBtn = document.getElementById('dict-add-btn'); // hidden while its form is open
+        if (dictBtn) dictBtn.style.display = '';
       }
       const rawC = document.getElementById('raw-form-collapse');
       if (rawC?.classList.contains('open')) {

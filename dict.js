@@ -5,7 +5,7 @@
 import {
   esc, withSnippets, registerUndoCallback, pushUndo, showConfirm, hideKeyForEntry,
   applyHiding, revealHidden, filterEntries, discardEditDraft, guardDiscard,
-  SVG_QUESTION, SVG_LIST, SVG_SECTION,
+  SVG_QUESTION, SVG_LIST, SVG_SECTION, wordFieldsHTML,
 } from './utils.js';
 import { AUTH } from './auth.js';
 import { load, save } from './store.js';
@@ -197,27 +197,11 @@ export function createDictPage(cfg) {
   }
 
   function _addFormHTML() {
-    const posField = hasPos ? `
-      <div class="form-group" style="flex-grow:0;min-width:85px">
-        <label class="form-label">pos</label>
-        <input class="form-input" id="add-pos" placeholder="n." />
-      </div>` : '';
     return `
       <div class="edit-collapse" id="add-form-collapse">
         <div class="edit-collapse-inner">
           <div class="add-form">
-            <div class="add-form-title">New ${label}</div>
-            <div class="form-row">
-              <div class="form-group" style="flex-grow:0;min-width:130px">
-                <label class="form-label">${label}</label>
-                <input class="form-input" id="add-word" placeholder="vid" />
-              </div>
-              ${posField}
-              <div class="form-group" style="flex:1;min-width:120px">
-                <label class="form-label">definition</label>
-                <input class="form-input" id="add-def" placeholder="meaning…" />
-              </div>
-            </div>
+            ${wordFieldsHTML(label, hasPos, { word: 'add-word', pos: 'add-pos', def: 'add-def' })}
             <div class="form-actions">
               <button class="btn btn-primary btn-sm" id="add-save-btn">add</button>
               <button class="btn btn-sm" id="add-cancel-btn">cancel</button>
@@ -249,7 +233,7 @@ export function createDictPage(cfg) {
   /* list-mode body: search bar, add controls, entry list */
   function _listModeHTML() {
     const addControls = AUTH.isLoggedIn() ? `
-      <button class="btn btn-sm" id="dict-add-btn">+ add ${label}</button>
+      <button class="btn btn-sm" id="dict-add-btn"${hasPos ? ' data-tooltip="coin a word (Ctrl++)"' : ''}>+ add ${label}</button>
       ${_addFormHTML()}` : '';
     return `
       <div class="search-row">

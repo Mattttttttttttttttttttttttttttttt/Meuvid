@@ -15,7 +15,7 @@ import {
   esc, withSnippets, registerUndoCallback, pushUndo, wrapSelectedText, showConfirm, hideKeyForEntry,
   randId, tagParaHideKeys, applyHiding, revealHidden, dragHandleHTML, initDragReorder,
   registerEscHandler, filterEntries, discardEditDraft, guardDiscard, formDirty,
-  animateIn, animateOut, captureOpenForms, replayCollapse, SVG_CHEVRON,
+  animateIn, animateOut, captureOpenForms, replayCollapse, SVG_CHEVRON, wordFieldsHTML,
 } from './utils.js';
 import { load, save } from './store.js'
 import { AUTH } from './auth.js';
@@ -234,11 +234,6 @@ export function createTextPage(cfg) {
     const mode = adder.mode;
     const tab = (m, label) =>
       `<button class="view-toggle-btn${mode === m ? ' active' : ''}" data-adder-mode="${m}">${label}</button>`;
-    const posField = hasPos ? `
-      <div class="form-group" style="flex-grow:0;min-width:85px">
-        <label class="form-label">pos</label>
-        <input class="form-input" id="adder-word-p" placeholder="n." />
-      </div>` : '';
     return `
       <div class="sec-adder">
         <div class="view-toggle adder-toggle">
@@ -255,18 +250,7 @@ export function createTextPage(cfg) {
 
         ${embedded ? `
         <div class="adder-pane" data-adder-pane="word"${mode === 'word' ? '' : ' hidden'}>
-          <div class="add-form-title">New word</div>
-          <div class="form-row">
-            <div class="form-group" style="flex-grow:0;min-width:130px">
-              <label class="form-label">${hasPos ? 'word' : 'affix'}</label>
-              <input class="form-input" id="adder-word-w" placeholder="${hasPos ? 'vid' : 'vid'}" />
-            </div>
-            ${posField}
-            <div class="form-group" style="flex:1;min-width:120px">
-              <label class="form-label">definition</label>
-              <input class="form-input" id="adder-word-d" placeholder="meaning…" />
-            </div>
-          </div>
+          ${wordFieldsHTML(hasPos ? 'word' : 'affix', hasPos, { word: 'adder-word-w', pos: 'adder-word-p', def: 'adder-word-d' })}
         </div>
 
         <div class="adder-pane" data-adder-pane="assign"${mode === 'assign' ? '' : ' hidden'}>

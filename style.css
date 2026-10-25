@@ -913,6 +913,19 @@ body {
   padding: 28px 30px 24px;
 }
 
+/* quick-add (coin a word) modal */
+.qa-modal {
+  max-width: 640px;
+  padding: 28px 30px 24px;
+  border-radius: var(--r-lg);
+}
+
+.qa-status {
+  font-size: 13px;
+  color: var(--text-3);
+  margin-left: 6px;
+}
+
 .confirm-msg {
   font-size: 17px;
   color: var(--text);
