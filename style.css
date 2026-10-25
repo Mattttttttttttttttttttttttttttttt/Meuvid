@@ -888,6 +888,23 @@ body {
 }
 .para-content > h1 b { font-weight: 700; }
 
+/* bullet points: hanging indent with a small diamond marker */
+.para-content > p .li {
+  display: block;
+  position: relative;
+  padding-left: 1.4em;
+}
+.para-content > p .li::before {
+  content: '';
+  position: absolute;
+  left: 0.3em;
+  top: calc(0.5lh - 2.5px);
+  width: 5px;
+  height: 5px;
+  background: var(--text-3);
+  transform: rotate(45deg);
+}
+
 /* ================================================================
    CONFIRMATION MODAL
    ================================================================ */

@@ -173,6 +173,16 @@ export function createTextPage(cfg) {
       </div>`;
   }
 
+  /** Paragraph text → HTML. Lines starting "- " become hanging-indent bullets (.li) */
+  function _paraHTML(text) {
+    const lines = withSnippets(text).split('\n');
+    return lines.map((l, k) => {
+      const bullet = l.startsWith('- ');
+      const out = bullet ? `<span class="li">${l.slice(2)}</span>` : l;
+      return bullet || k === lines.length - 1 ? out : out + '<br>';
+    }).join('');
+  }
+
   function _paraItemHTML(item, s, i) {
     const { text, id } = item;
 
@@ -197,7 +207,7 @@ export function createTextPage(cfg) {
     return `
       <div class="sec-item para-block" data-sec="${s}" data-item="${i}" data-drag-key="${s}.${i}">
         <div class="para-content" data-para-id="${esc(id)}">
-          <p>${withSnippets(text).replace(/\n/g, '<br>')}</p>
+          <p>${_paraHTML(text)}</p>
           ${loggedIn() ? `<div class="para-gutter">${dragHandleHTML()}${editBtn}</div>` : ''}
         </div>
         ${editForm}

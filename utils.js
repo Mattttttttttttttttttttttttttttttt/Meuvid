@@ -333,17 +333,37 @@ export function revealHidden(el) {
  * Click a coverable region (nothing selected, no modifier held) to flip its
  * hidden state, independent of the baseline mode.
  */
-document.addEventListener('click', e => {
-  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-  const el = e.target.closest('[data-hide-key]');
-  if (!el) return;
-  const sel = window.getSelection();
-  if (sel && !sel.isCollapsed && el.contains(sel.anchorNode)) return; // was a text selection over el, not a click
+let _lastTouchEnd = 0;
+const _pendingHides = new Set(); // touch toggles waiting out the double-tap gate
+document.addEventListener('touchend', () => { _lastTouchEnd = Date.now(); }, true);
+
+function _toggleHide(el) {
   const key = el.dataset.hideKey, kind = _hideKind(el);
   if (!key || !kind) return;
   const exc = _hideExceptions(kind);
   exc.has(key) ? exc.delete(key) : exc.add(key);
   _syncHideEl(el);
+}
+
+/** A double tap (edit) arrived: drop toggles still waiting on the gate. */
+function _cancelPendingHides() {
+  _pendingHides.forEach(clearTimeout);
+  _pendingHides.clear();
+}
+
+document.addEventListener('click', e => {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  const el = e.target.closest('[data-hide-key]');
+  if (!el) return;
+  const sel = window.getSelection();
+  if (sel && !sel.isCollapsed && el.contains(sel.anchorNode)) return; // was a text selection
+  /* wait out double tap before toggling */
+  if (Date.now() - _lastTouchEnd < 600 && el.closest('[data-drag-key]')) {
+    const t = setTimeout(() => { _pendingHides.delete(t); _toggleHide(el); }, DOUBLE_TAP_MS);
+    _pendingHides.add(t);
+    return;
+  }
+  _toggleHide(el);
 });
 
 /* Alt+scroll moves twice as fast. Let the native scroll happen (so it keeps
@@ -379,7 +399,7 @@ export function dragHandleHTML() {
 
 const _DRAG = { active: false };
 const _LAST_TAP = { key: null, time: 0, x: 0, y: 0 };
-const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_MS = 250;
 const DOUBLE_TAP_DIST = 30;
 const DRAG_MOVE_THRESHOLD = 10;
 
@@ -408,6 +428,7 @@ export function initDragReorder(container, onDrop, onEdit, canDrag = () => true)
         && Date.now() - _LAST_TAP.time < DOUBLE_TAP_MS
         && Math.hypot(sx - _LAST_TAP.x, sy - _LAST_TAP.y) < DOUBLE_TAP_DIST;
       if (tracking) {
+        _cancelPendingHides();
         _LAST_TAP.key = null; // consumed — a 3rd tap starts fresh
         // This touch might turn into a drag → claim it before the browser commits it to a scroll.
         block.style.touchAction = 'none';
